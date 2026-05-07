@@ -12,10 +12,13 @@
   "license": "ISC",
   "packageManager": "pnpm@10.29.2",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.78.0",
     "playwright": "^1.58.2"
   },
   "devDependencies": {
-    "prettier": "^3.8.1"
+    "prettier": "^3.8.1",
+    "supabase": "^2.95.3"
   },
   "type": "module"
 }

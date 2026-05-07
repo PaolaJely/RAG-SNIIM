@@ -1,4 +1,7 @@
 import { ScraperSNIIM } from "./lib/ScraperSNIIM.js";
+import { writeFileSync } from "fs";
+
+
 
 (async () => {
   const scraper = new ScraperSNIIM({
@@ -9,5 +12,8 @@ import { ScraperSNIIM } from "./lib/ScraperSNIIM.js";
   });
 
   const results = await scraper.scrape();
-  console.log(results);
+  console.log(`Total registros ${results.length}`);
+
+  writeFileSync('platano_tabasco.json', JSON.stringify(results, null, 2));
+  console.log("Archivo JSON creado con éxito");
 })();
