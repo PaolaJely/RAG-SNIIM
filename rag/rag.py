@@ -1,10 +1,58 @@
-from typing import List, Tuple, Dict
+import re
+from typing import List, Tuple, Dict, Optional
 from supabase import create_client
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_community.callbacks import get_openai_callback
 import config
 from embeddings_factory import embeddings
+from compressor import formatear_contexto_toon
+
+# Términos geográficos que pueden aparecer en las preguntas.
+# Se usan para post-filtrar los documentos del retriever cuando el usuario
+# pregunta específicamente por un estado, ciudad o mercado.
+_TERMINOS_GEO = [
+    "tabasco", "villahermosa",
+    "veracruz", "xalapa", "coatzacoalcos",
+    "chiapas", "tuxtla", "tapachula",
+    "oaxaca",
+    "guerrero", "acapulco", "chilpancingo",
+    "michoacán", "morelia",
+    "jalisco", "guadalajara",
+    "colima",
+    "nayarit",
+    "sinaloa", "culiacán",
+    "sonora", "hermosillo",
+    "baja california", "tijuana", "mexicali",
+    "tamaulipas", "monterrey", "nuevo león",
+    "coahuila", "saltillo",
+    "chihuahua",
+    "durango",
+    "zacatecas",
+    "san luis potosí",
+    "hidalgo", "pachuca",
+    "puebla",
+    "tlaxcala",
+    "morelos", "cuernavaca",
+    "estado de méxico", "toluca",
+    "ciudad de méxico", "cdmx",
+    "querétaro",
+    "guanajuato", "irapuato",
+    "aguascalientes",
+    "yucatán", "mérida",
+    "campeche",
+    "quintana roo", "cancún",
+]
+
+
+def _extraer_filtro_geo(query: str) -> Optional[str]:
+    """Retorna el primer término geográfico encontrado en la pregunta, o None."""
+    q = query.lower()
+    for termino in _TERMINOS_GEO:
+        if re.search(r"\b" + re.escape(termino) + r"\b", q):
+            return termino
+    return None
 
 # ==================== INICIALIZACIÓN ====================
 supabase = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
@@ -20,7 +68,12 @@ def retriever(query: str, k: int = None) -> Tuple[str, List[Dict]]:
     if k is None:
         k = config.SEARCH_K
 
-    print(f"\n🔍 Buscando {k} documentos similares...")
+    filtro_geo = _extraer_filtro_geo(query)
+    # Si hay filtro geográfico, recuperar más candidatos para compensar el post-filtrado
+    match_count = min(k * 4, 40) if filtro_geo else min(k * 2, 20)
+
+    print(f"\n🔍 Buscando {k} documentos similares..." +
+          (f" [filtro geográfico: '{filtro_geo}']" if filtro_geo else ""))
 
     query_embedding = embeddings.embed_query(query)
 
@@ -29,7 +82,7 @@ def retriever(query: str, k: int = None) -> Tuple[str, List[Dict]]:
             "buscar_producto",
             {
                 "query_embedding": query_embedding,
-                "match_count": min(k * 2, 20),
+                "match_count": match_count,
             },
         ).execute()
 
@@ -39,8 +92,22 @@ def retriever(query: str, k: int = None) -> Tuple[str, List[Dict]]:
         if not documentos:
             return "", []
 
+        # Aplicar filtro geográfico si la pregunta menciona un lugar específico
+        if filtro_geo:
+            docs_filtrados = [
+                d for d in documentos
+                if filtro_geo in d.get("destino", "").lower()
+                or filtro_geo in d.get("origen", "").lower()
+            ]
+            # Solo sustituir si el filtro produjo resultados, si no usar los originales
+            if docs_filtrados:
+                documentos = docs_filtrados
+                print(f"   → {len(documentos)} documentos tras filtro geográfico")
+            else:
+                print(f"   ⚠ Sin resultados para '{filtro_geo}', usando búsqueda general")
+
         documentos = diversificar_documentos(documentos, k)
-        return formatear_contexto(documentos), documentos
+        return formatear_contexto_toon(documentos), documentos
 
     except Exception as e:
         print(f"Error en búsqueda vectorial: {e}")
@@ -91,6 +158,8 @@ REGISTRO {i}:
 _TEMPLATE = """Eres un experto en precios de plátanos en Tabasco, México.
 Tu objetivo es analizar datos de precios, orígenes y destinos de manera clara y precisa.
 
+Los registros están en formato TOON: campos declarados una vez en la cabecera, valores separados por "|" en filas subsiguientes.
+
 ESTRUCTURA DE LOS DATOS:
 - Origen: estado o región donde se produce el plátano
 - Destino: mercado o ciudad donde se vende
@@ -140,14 +209,34 @@ def rag_query(pregunta: str, verbose: bool = True) -> Dict:
         respuesta = "No encontré información relevante. Intenta con términos más específicos."
         if verbose:
             print(f"\n{'='*70}\n💬 RESPUESTA:\n{respuesta}\n{'='*70}\n")
-        return {"pregunta": pregunta, "contexto": "", "documentos": [], "respuesta": respuesta}
+        return {
+            "pregunta": pregunta,
+            "contexto": "",
+            "documentos": [],
+            "respuesta": respuesta,
+            "tokens": None,
+        }
 
-    respuesta = generator(pregunta, contexto)
+    with get_openai_callback() as cb:
+        respuesta = generator(pregunta, contexto)
+
+    token_info: Dict = {
+        "tokens_prompt": cb.prompt_tokens,
+        "tokens_completion": cb.completion_tokens,
+        "tokens_total": cb.total_tokens,
+        "costo_usd": round(cb.total_cost, 6),
+    }
 
     if verbose:
         print(f"\n{'='*70}")
         print(f"💬 RESPUESTA:\n{respuesta}")
         print(f"\n📊 Documentos utilizados: {len(documentos)}")
+        print(
+            f"🔢 Tokens — prompt: {token_info['tokens_prompt']} | "
+            f"completion: {token_info['tokens_completion']} | "
+            f"total: {token_info['tokens_total']} | "
+            f"costo: ${token_info['costo_usd']}"
+        )
         print(f"{'='*70}\n")
 
     return {
@@ -155,6 +244,7 @@ def rag_query(pregunta: str, verbose: bool = True) -> Dict:
         "contexto": contexto,
         "documentos": documentos,
         "respuesta": respuesta,
+        "tokens": token_info,
     }
 
 

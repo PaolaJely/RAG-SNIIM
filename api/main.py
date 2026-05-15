@@ -6,6 +6,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "rag"))
 
 from collections import defaultdict
 from typing import Optional
+import time
+import threading
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -41,22 +43,24 @@ PRESENTACION_FACTOR = {
 }
 
 
-def _all_records(destino: Optional[str] = None) -> list[dict]:
-    """
-    Descarga todos los registros de Supabase en páginas de 1000,
-    normaliza precios a MXN/kg y filtra por destino si se indica.
-    """
+_cache_lock = threading.Lock()
+_cache_data: list[dict] = []
+_cache_ts: float = 0.0
+_CACHE_TTL = 10 * 60  # 10 minutos
+
+
+def _fetch_all_from_supabase() -> list[dict]:
+    """Descarga todos los registros de Supabase en páginas de 1000 y normaliza precios."""
     rows = []
     page_size = 1000
     offset = 0
     while True:
-        query = (
+        result = (
             supabase.table("producto")
             .select("fecha, origen, destino, presentacion, precio_min, precio_max, precio_frec")
+            .range(offset, offset + page_size - 1)
+            .execute()
         )
-        if destino:
-            query = query.ilike("destino", f"{destino}%")
-        result = query.range(offset, offset + page_size - 1).execute()
         batch = result.data or []
         rows.extend(batch)
         if len(batch) < page_size:
@@ -73,6 +77,26 @@ def _all_records(destino: Optional[str] = None) -> list[dict]:
             "precio_max":  round(r["precio_max"]  / factor, 2) if r["precio_max"]  else None,
         })
     return normalized
+
+
+def _all_records(destino: Optional[str] = None) -> list[dict]:
+    """
+    Devuelve todos los registros normalizados, usando caché en memoria (TTL 10 min).
+    El filtro por destino se aplica en Python para evitar múltiples queries a Supabase.
+    """
+    global _cache_data, _cache_ts
+
+    with _cache_lock:
+        if not _cache_data or (time.time() - _cache_ts) > _CACHE_TTL:
+            _cache_data = _fetch_all_from_supabase()
+            _cache_ts = time.time()
+        rows = _cache_data
+
+    if destino:
+        destino_lower = destino.lower()
+        rows = [r for r in rows if r.get("destino", "").lower().startswith(destino_lower)]
+
+    return rows
 
 
 def _parse_month(fecha: str) -> str:
@@ -168,8 +192,11 @@ def get_precios_mensual(destino: Optional[str] = Query(None)):
 
 
 @app.get("/api/precios/heatmap")
-def get_precios_heatmap(destino: Optional[str] = Query(None)):
-    """Matriz destino × mes para PriceHeatmap (top 10 destinos por volumen)."""
+def get_precios_heatmap(
+    destino: Optional[str] = Query(None),
+    limit: int = Query(default=0, ge=0, description="Máx. destinos a mostrar (0 = todos)"),
+):
+    """Matriz destino × mes para PriceHeatmap."""
     rows = _all_records(destino)
 
     # Contar registros por destino (nombre corto) y acumular precios
@@ -185,7 +212,8 @@ def get_precios_heatmap(destino: Optional[str] = Query(None)):
         if r["precio_frec"] is not None:
             acum[destino_corto][mes].append(r["precio_frec"])
 
-    top_destinos = sorted(conteo, key=lambda d: conteo[d], reverse=True)[:10]
+    ordenados = sorted(conteo, key=lambda d: conteo[d], reverse=True)
+    top_destinos = ordenados[:limit] if limit > 0 else ordenados
 
     heatmap = {}
     for dest in top_destinos:
@@ -247,6 +275,7 @@ def post_chat(body: ChatRequest):
             "respuesta": result["respuesta"],
             "documentos": result["documentos"],
             "total_docs": len(result["documentos"]),
+            "tokens": result.get("tokens"),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

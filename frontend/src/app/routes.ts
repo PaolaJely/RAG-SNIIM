@@ -1,8 +1,21 @@
 import { createBrowserRouter } from "react-router";
-import { Layout } from "./components/Layout";
-import { Dashboard } from "./components/Dashboard";
-import { Mercados } from "./components/Mercados";
-import { ChatIA } from "./components/ChatIA";
+import { lazy } from "react";
+import { Layout } from "../shared/layout/Layout";
+
+// Route-level code splitting: each page becomes its own JS chunk.
+// The browser only downloads the code for the current route, reducing
+// initial bundle from ~827 kB to separate chunks loaded on demand.
+const Dashboard = lazy(() =>
+  import("../features/dashboard/components/Dashboard").then((m) => ({ default: m.Dashboard })),
+);
+const Mercados = lazy(() =>
+  import("../features/markets/components/Mercados").then((m) => ({ default: m.Mercados })),
+);
+const ChatIA = lazy(() =>
+  import("../features/chat/components/ChatIA").then((m) => ({ default: m.ChatIA })),
+);
+
+export { Dashboard, Mercados, ChatIA };
 
 export const router = createBrowserRouter([
   {

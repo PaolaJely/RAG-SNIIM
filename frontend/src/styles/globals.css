@@ -1,63 +1,42 @@
-/* Dark mode overrides */
-.dark body {
-  background-color: #0f172a;
-  color: #f1f5f9;
+/* ── Global UI Refinements ── */
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.dark .bg-white {
-  background-color: #1e293b !important;
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 99px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.dark .bg-\[\#F8F9FA\] {
-  background-color: #0f172a !important;
+/* Focus rings: visible only on keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.dark :focus-visible {
+  outline-color: var(--brand-accent);
 }
 
-.dark .bg-\[\#F0F3F4\] {
-  background-color: #1e293b !important;
+/* Selection highlight */
+::selection {
+  background-color: var(--brand-muted);
+  color: var(--brand);
 }
-
-.dark .bg-gray-100 {
-  background-color: #334155 !important;
-}
-
-.dark .bg-gray-50 {
-  background-color: #1e293b !important;
-}
-
-.dark .text-gray-900,
-.dark .text-gray-800,
-.dark .text-gray-700,
-.dark .text-gray-600 {
-  color: #cbd5e1 !important;
-}
-
-.dark .text-gray-500 {
-  color: #94a3b8 !important;
-}
-
-.dark .border-gray-200,
-.dark .border-gray-300,
-.dark .border-gray-100 {
-  border-color: #334155 !important;
-}
-
-.dark header {
-  background-color: #1e293b !important;
-  border-color: #334155 !important;
-}
-
-.dark aside.w-60 {
-  background-color: #0f172a !important;
-}
-
-.dark .shadow,
-.dark .shadow-sm {
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.4) !important;
-}
-
-.dark input,
-.dark select {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-  border-color: #334155 !important;
+.dark ::selection {
+  background-color: var(--brand-muted);
+  color: var(--brand-foreground);
 }

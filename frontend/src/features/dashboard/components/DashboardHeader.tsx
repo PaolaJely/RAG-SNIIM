@@ -1,0 +1,34 @@
+import { motion } from "motion/react";
+import { getDayGreeting, formatLongDate } from "../../../lib/format";
+import { useFilterStore } from "../../../stores/filterStore.tsx";
+
+export function DashboardHeader() {
+  const { destino } = useFilterStore();
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28 }}
+      className="flex flex-col sm:flex-row sm:items-end justify-between gap-2"
+    >
+      <div>
+        <h1 className="text-lg font-semibold text-foreground">
+          {getDayGreeting()}
+        </h1>
+        <p className="text-sm text-muted-foreground mt-0.5 capitalize">
+          {formatLongDate()}
+          {destino && (
+            <>
+              {" · "}
+              <span className="text-brand font-medium">{destino}</span>
+            </>
+          )}
+        </p>
+      </div>
+      <p className="text-xs text-muted-foreground shrink-0">
+        Precios del plátano Tabasco · 2025
+      </p>
+    </motion.div>
+  );
+}
