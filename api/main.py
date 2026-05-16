@@ -8,11 +8,12 @@ from collections import defaultdict
 from typing import Optional
 import time
 import threading
+import psycopg2
+import psycopg2.extras
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import config
-from supabase import create_client
 
 app = FastAPI(title="SNIIM API", version="1.0.0")
 
@@ -22,8 +23,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-supabase = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
 
 MESES = {
     "01": "Ene", "02": "Feb", "03": "Mar", "04": "Abr",
@@ -49,23 +48,27 @@ _cache_ts: float = 0.0
 _CACHE_TTL = 10 * 60  # 10 minutos
 
 
-def _fetch_all_from_supabase() -> list[dict]:
-    """Descarga todos los registros de Supabase en páginas de 1000 y normaliza precios."""
-    rows = []
-    page_size = 1000
-    offset = 0
-    while True:
-        result = (
-            supabase.table("producto")
-            .select("fecha, origen, destino, presentacion, precio_min, precio_max, precio_frec")
-            .range(offset, offset + page_size - 1)
-            .execute()
-        )
-        batch = result.data or []
-        rows.extend(batch)
-        if len(batch) < page_size:
-            break
-        offset += page_size
+def _get_pg() -> psycopg2.extensions.connection:
+    """Abre una conexión a Postgres."""
+    return psycopg2.connect(config.POSTGRES_DSN)
+
+
+def _fetch_all_from_postgres(producto_id: str = "732") -> list[dict]:
+    """Descarga todos los registros de Postgres y normaliza precios a MXN/kg."""
+    conn = _get_pg()
+    cur  = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        """
+        SELECT fecha, origen, destino, presentacion,
+               precio_min, precio_max, precio_frec
+        FROM   producto
+        WHERE  producto_id = %s
+        """,
+        [producto_id],
+    )
+    rows = [dict(r) for r in cur.fetchall()]
+    cur.close()
+    conn.close()
 
     normalized = []
     for r in rows:
@@ -79,16 +82,19 @@ def _fetch_all_from_supabase() -> list[dict]:
     return normalized
 
 
-def _all_records(destino: Optional[str] = None) -> list[dict]:
-    """
-    Devuelve todos los registros normalizados, usando caché en memoria (TTL 10 min).
-    El filtro por destino se aplica en Python para evitar múltiples queries a Supabase.
+def _all_records(
+    destino: Optional[str] = None,
+    producto_id: str = "732",
+) -> list[dict]:
+    """Devuelve todos los registros normalizados con caché en memoria (TTL 10 min).
+
+    El filtro por destino usa ILIKE vía SQL en la propia consulta a Postgres.
     """
     global _cache_data, _cache_ts
 
     with _cache_lock:
         if not _cache_data or (time.time() - _cache_ts) > _CACHE_TTL:
-            _cache_data = _fetch_all_from_supabase()
+            _cache_data = _fetch_all_from_postgres(producto_id)
             _cache_ts = time.time()
         rows = _cache_data
 

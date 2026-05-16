@@ -1,6 +1,6 @@
-import re
 from typing import List, Tuple, Dict, Optional
-from supabase import create_client
+from qdrant_client import QdrantClient
+from qdrant_client.models import Filter, FieldCondition, MatchValue
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -9,53 +9,8 @@ import config
 from embeddings_factory import embeddings
 from compressor import formatear_contexto_toon
 
-# Términos geográficos que pueden aparecer en las preguntas.
-# Se usan para post-filtrar los documentos del retriever cuando el usuario
-# pregunta específicamente por un estado, ciudad o mercado.
-_TERMINOS_GEO = [
-    "tabasco", "villahermosa",
-    "veracruz", "xalapa", "coatzacoalcos",
-    "chiapas", "tuxtla", "tapachula",
-    "oaxaca",
-    "guerrero", "acapulco", "chilpancingo",
-    "michoacán", "morelia",
-    "jalisco", "guadalajara",
-    "colima",
-    "nayarit",
-    "sinaloa", "culiacán",
-    "sonora", "hermosillo",
-    "baja california", "tijuana", "mexicali",
-    "tamaulipas", "monterrey", "nuevo león",
-    "coahuila", "saltillo",
-    "chihuahua",
-    "durango",
-    "zacatecas",
-    "san luis potosí",
-    "hidalgo", "pachuca",
-    "puebla",
-    "tlaxcala",
-    "morelos", "cuernavaca",
-    "estado de méxico", "toluca",
-    "ciudad de méxico", "cdmx",
-    "querétaro",
-    "guanajuato", "irapuato",
-    "aguascalientes",
-    "yucatán", "mérida",
-    "campeche",
-    "quintana roo", "cancún",
-]
-
-
-def _extraer_filtro_geo(query: str) -> Optional[str]:
-    """Retorna el primer término geográfico encontrado en la pregunta, o None."""
-    q = query.lower()
-    for termino in _TERMINOS_GEO:
-        if re.search(r"\b" + re.escape(termino) + r"\b", q):
-            return termino
-    return None
-
 # ==================== INICIALIZACIÓN ====================
-supabase = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
+qdrant = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
 
 llm = ChatOpenAI(
     model=config.OPENAI_LLM_MODEL,
@@ -64,58 +19,59 @@ llm = ChatOpenAI(
 )
 
 # ==================== RETRIEVAL ====================
-def retriever(query: str, k: int = None) -> Tuple[str, List[Dict]]:
+def retriever(
+    query: str,
+    k: int = None,
+    producto_id: Optional[str] = None,
+) -> Tuple[str, List[Dict]]:
+    """Busca los k documentos más similares en Qdrant.
+
+    Args:
+        query: Pregunta del usuario.
+        k: Número máximo de documentos a recuperar.
+        producto_id: Filtrar por producto SNIIM específico (opcional).
+    """
     if k is None:
         k = config.SEARCH_K
 
-    filtro_geo = _extraer_filtro_geo(query)
-    # Si hay filtro geográfico, recuperar más candidatos para compensar el post-filtrado
-    match_count = min(k * 4, 40) if filtro_geo else min(k * 2, 20)
-
-    print(f"\n🔍 Buscando {k} documentos similares..." +
-          (f" [filtro geográfico: '{filtro_geo}']" if filtro_geo else ""))
+    print(f"\n🔍 Buscando {k} documentos similares en Qdrant...")
 
     query_embedding = embeddings.embed_query(query)
 
-    try:
-        resultado = supabase.rpc(
-            "buscar_producto",
-            {
-                "query_embedding": query_embedding,
-                "match_count": match_count,
-            },
-        ).execute()
+    search_filter = None
+    if producto_id:
+        search_filter = Filter(
+            must=[FieldCondition(key="producto_id", match=MatchValue(value=producto_id))]
+        )
 
-        documentos = resultado.data or []
-        documentos = [d for d in documentos if d["similarity"] >= config.SIMILARITY_THRESHOLD]
+    try:
+        resultados = qdrant.search(
+            collection_name=config.QDRANT_COLLECTION,
+            query_vector=query_embedding,
+            limit=min(k * 2, 20),
+            query_filter=search_filter,
+            with_payload=True,
+        )
+
+        documentos = [
+            {**r.payload, "similarity": r.score}
+            for r in resultados
+            if r.score >= config.SIMILARITY_THRESHOLD
+        ]
 
         if not documentos:
             return "", []
-
-        # Aplicar filtro geográfico si la pregunta menciona un lugar específico
-        if filtro_geo:
-            docs_filtrados = [
-                d for d in documentos
-                if filtro_geo in d.get("destino", "").lower()
-                or filtro_geo in d.get("origen", "").lower()
-            ]
-            # Solo sustituir si el filtro produjo resultados, si no usar los originales
-            if docs_filtrados:
-                documentos = docs_filtrados
-                print(f"   → {len(documentos)} documentos tras filtro geográfico")
-            else:
-                print(f"   ⚠ Sin resultados para '{filtro_geo}', usando búsqueda general")
 
         documentos = diversificar_documentos(documentos, k)
         return formatear_contexto_toon(documentos), documentos
 
     except Exception as e:
-        print(f"Error en búsqueda vectorial: {e}")
+        print(f"❌ Error en búsqueda vectorial: {e}")
         return "", []
 
 
 def diversificar_documentos(docs: List[Dict], k: int) -> List[Dict]:
-    """Prioriza pares únicos origen/destino para evitar redundancia."""
+    """Prioriza pares únicos origen/destino para evitar redundancia en el contexto."""
     seleccionados: List[Dict] = []
     pares_vistos: set = set()
 
@@ -134,24 +90,6 @@ def diversificar_documentos(docs: List[Dict], k: int) -> List[Dict]:
                 return seleccionados
 
     return seleccionados[:k]
-
-
-def formatear_contexto(documentos: List[Dict]) -> str:
-    partes = []
-    for i, doc in enumerate(documentos, 1):
-        partes.append(f"""
-REGISTRO {i}:
-├─ Fecha: {doc.get('fecha', 'N/A')}
-├─ Origen: {doc.get('origen', 'N/A')}
-├─ Destino: {doc.get('destino', 'N/A')}
-├─ Presentación: {doc.get('presentacion', 'N/A')}
-├─ Precio Mínimo: ${doc.get('precio_min', 'N/A')}/kg
-├─ Precio Máximo: ${doc.get('precio_max', 'N/A')}/kg
-├─ Precio Frecuente: ${doc.get('precio_frec', 'N/A')}/kg
-├─ Observaciones: {doc.get('obs', 'N/A')}
-└─ Similitud: {doc.get('similarity', 0):.1%}
-""")
-    return "\n".join(partes)
 
 
 # ==================== GENERATION ====================
@@ -189,42 +127,58 @@ INSTRUCCIONES CRÍTICAS:
 
 RESPUESTA:"""
 
+_prompt = PromptTemplate(template=_TEMPLATE, input_variables=["contexto", "query"])
+_chain  = _prompt | llm | StrOutputParser()
+
 
 def generator(query: str, contexto: str) -> str:
-    prompt = PromptTemplate(template=_TEMPLATE, input_variables=["contexto", "query"])
-    chain = prompt | llm | StrOutputParser()
-    return chain.invoke({"contexto": contexto, "query": query})
+    """Genera la respuesta del LLM dado el contexto recuperado."""
+    return _chain.invoke({"contexto": contexto, "query": query})
 
 
 # ==================== PIPELINE RAG COMPLETO ====================
-def rag_query(pregunta: str, verbose: bool = True) -> Dict:
+def rag_query(
+    pregunta: str,
+    verbose: bool = True,
+    producto_id: Optional[str] = None,
+) -> Dict:
+    """Pipeline RAG completo con token tracking.
+
+    Args:
+        pregunta: Pregunta del usuario en lenguaje natural.
+        verbose: Imprime resumen de tokens y documentos en consola.
+        producto_id: Filtrar por producto SNIIM (None = todos).
+
+    Returns:
+        Diccionario con pregunta, contexto, documentos, respuesta y tokens.
+    """
     if verbose:
         print(f"\n{'='*70}")
         print(f"PREGUNTA: {pregunta}")
         print(f"{'='*70}")
 
-    contexto, documentos = retriever(pregunta)
+    contexto, documentos = retriever(pregunta, producto_id=producto_id)
 
     if not contexto:
         respuesta = "No encontré información relevante. Intenta con términos más específicos."
         if verbose:
             print(f"\n{'='*70}\n💬 RESPUESTA:\n{respuesta}\n{'='*70}\n")
         return {
-            "pregunta": pregunta,
-            "contexto": "",
+            "pregunta":   pregunta,
+            "contexto":   "",
             "documentos": [],
-            "respuesta": respuesta,
-            "tokens": None,
+            "respuesta":  respuesta,
+            "tokens":     None,
         }
 
     with get_openai_callback() as cb:
         respuesta = generator(pregunta, contexto)
 
     token_info: Dict = {
-        "tokens_prompt": cb.prompt_tokens,
+        "tokens_prompt":     cb.prompt_tokens,
         "tokens_completion": cb.completion_tokens,
-        "tokens_total": cb.total_tokens,
-        "costo_usd": round(cb.total_cost, 6),
+        "tokens_total":      cb.total_tokens,
+        "costo_usd":         round(cb.total_cost, 6),
     }
 
     if verbose:
@@ -240,11 +194,11 @@ def rag_query(pregunta: str, verbose: bool = True) -> Dict:
         print(f"{'='*70}\n")
 
     return {
-        "pregunta": pregunta,
-        "contexto": contexto,
+        "pregunta":   pregunta,
+        "contexto":   contexto,
         "documentos": documentos,
-        "respuesta": respuesta,
-        "tokens": token_info,
+        "respuesta":  respuesta,
+        "tokens":     token_info,
     }
 
 
@@ -253,9 +207,10 @@ if __name__ == "__main__":
     print(f"\n{'='*70}")
     print("🍌 RAG - SISTEMA DE PRECIOS DE PLÁTANOS SNIIM")
     print(f"{'='*70}")
-    print(f"📌 Embeddings: {config.PROVIDER.value.upper()}")
+    print(f"📌 Embeddings: {config.PROVIDER.upper()}")
     print(f"📌 LLM: OpenAI ({config.OPENAI_LLM_MODEL})")
-    print(f"📌 Top-{config.SEARCH_K} documentos | Umbral similitud: {config.SIMILARITY_THRESHOLD}")
+    print(f"📌 Qdrant: {config.QDRANT_HOST}:{config.QDRANT_PORT}/{config.QDRANT_COLLECTION}")
+    print(f"📌 Top-{config.SEARCH_K} docs | Umbral: {config.SIMILARITY_THRESHOLD}")
     print(f"\n💡 Escribe 'salir' para terminar")
     print(f"{'='*70}\n")
 
