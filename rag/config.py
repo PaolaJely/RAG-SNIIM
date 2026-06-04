@@ -8,18 +8,6 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env")
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 
-# ── Provider de embeddings ─────────────────────────────
-PROVIDER = os.getenv("PROVIDER", "ollama").lower()
-
-
-def is_ollama() -> bool:
-    return PROVIDER == "ollama"
-
-
-def is_openai() -> bool:
-    return PROVIDER == "openai"
-
-
 # ── Qdrant ─────────────────────────────────────────────
 QDRANT_HOST       = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT       = int(os.getenv("QDRANT_PORT", "6333"))
@@ -37,11 +25,6 @@ POSTGRES_DSN = (
     f"dbname={POSTGRES_DB} user={POSTGRES_USER} "
     f"password={POSTGRES_PASSWORD}"
 )
-
-# ── Ollama ─────────────────────────────────────────────
-OLLAMA_BASE_URL        = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
-OLLAMA_LLM_MODEL       = os.getenv("OLLAMA_LLM_MODEL", "llama3.2")
 
 # ── OpenAI ─────────────────────────────────────────────
 OPENAI_API_KEY         = os.getenv("OPENAI_API_KEY", "")

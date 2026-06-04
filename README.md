@@ -1,6 +1,6 @@
 # RAG-SNIIM — Sistema de Análisis de Precios de Plátano Tabasco
 
-Sistema integral de **Retrieval-Augmented Generation (RAG)** para consultar y analizar los precios de plátano tabasco registrados en el SNIIM (Sistema Nacional de Información e Integración de Mercados). Combina un scraper web, una base de datos vectorial, una API REST y un dashboard interactivo con chat de inteligencia artificial.
+Sistema integral de **Retrieval-Augmented Generation (RAG)** para consultar y analizar los precios de plátano tabasco registrados en el SNIIM (Sistema Nacional de Información e Integración de Mercados). Combina un scraper web, búsqueda vectorial en Qdrant, almacenamiento relacional en Postgres, una API REST y un dashboard interactivo con chat de inteligencia artificial.
 
 ---
 
@@ -13,6 +13,8 @@ RAG-SNIIM-main/
 ├── api/              # API REST (FastAPI) — endpoints para el dashboard y el chat IA
 ├── frontend/         # Dashboard React + Vite + Tailwind — visualización y chat
 ├── data/             # Datos en JSON generados por el scraper
+├── docker-compose.yml # Infraestructura: Qdrant + PostgreSQL
+├── api/sql/init.sql  # Esquema inicial de Postgres (montado en el contenedor)
 └── .env              # Variables de entorno (no se versiona)
 ```
 
@@ -23,20 +25,22 @@ RAG-SNIIM-main/
 | Capa | Tecnología |
 |---|---|
 | Scraper | Node.js, Playwright, pnpm |
-| Embeddings | Ollama (`nomic-embed-text`) / OpenAI (`text-embedding-3-small`) |
+| Embeddings | OpenAI (`text-embedding-3-small`) |
 | LLM | OpenAI (`gpt-4o-mini`) |
-| Vector store | Supabase (pgvector) |
-| API | Python 3, FastAPI, LangChain |
+| Vector store | Qdrant |
+| Datos analíticos | PostgreSQL 17 |
+| Infraestructura | Docker Compose (Qdrant + Postgres) |
+| API | Python 3.11+, FastAPI, LangChain |
 | Frontend | React 18, Vite, Tailwind CSS 4, shadcn/ui, Recharts |
 
 ---
 
 ## Requisitos previos
 
+- **Docker** y **Docker Compose** (recomendado para levantar Qdrant y Postgres)
 - **Node.js** ≥ 18 y **pnpm** ≥ 10
 - **Python** ≥ 3.11
-- Cuenta en **[Supabase](https://supabase.com)** con la extensión `pgvector` habilitada y la función `buscar_producto` creada
-- **Ollama** corriendo en `http://localhost:11434` con el modelo `nomic-embed-text` descargado (si `PROVIDER=ollama`), **o** una API key de **OpenAI** (si `PROVIDER=openai`)
+- **API key de OpenAI** con acceso a embeddings y al modelo `gpt-4o-mini`
 
 ---
 
@@ -50,17 +54,88 @@ cp .env.example .env
 
 | Variable | Descripción |
 |---|---|
-| `PROVIDER` | Proveedor de embeddings: `ollama` (local) u `openai` |
-| `SUPABASE_URL` | URL de tu proyecto en Supabase |
-| `SUPABASE_KEY` | Service role key de Supabase |
-| `OLLAMA_BASE_URL` | URL de Ollama (por defecto `http://localhost:11434`) |
-| `OLLAMA_EMBEDDING_MODEL` | Modelo de embeddings de Ollama (por defecto `nomic-embed-text`) |
-| `OLLAMA_LLM_MODEL` | Modelo LLM de Ollama (por defecto `llama3.2`) |
+| `QDRANT_HOST` | Host de Qdrant (por defecto `localhost`) |
+| `QDRANT_PORT` | Puerto de Qdrant (por defecto `6333`) |
+| `QDRANT_COLLECTION` | Nombre de la colección (por defecto `sniim`) |
+| `POSTGRES_HOST` | Host de PostgreSQL |
+| `POSTGRES_PORT` | Puerto de PostgreSQL (por defecto `5432`) |
+| `POSTGRES_DB` | Nombre de la base de datos |
+| `POSTGRES_USER` | Usuario de PostgreSQL |
+| `POSTGRES_PASSWORD` | Contraseña de PostgreSQL |
 | `OPENAI_API_KEY` | API key de OpenAI |
-| `OPENAI_LLM_MODEL` | Modelo LLM de OpenAI (por defecto `gpt-4o-mini`) |
-| `OPENAI_EMBEDDING_MODEL` | Modelo de embeddings de OpenAI (por defecto `text-embedding-3-small`) |
+| `OPENAI_LLM_MODEL` | Modelo LLM (por defecto `gpt-4o-mini`) |
+| `OPENAI_EMBEDDING_MODEL` | Modelo de embeddings (por defecto `text-embedding-3-small`) |
 | `SEARCH_K` | Número de documentos a recuperar por consulta (por defecto `16`) |
 | `SIMILARITY_THRESHOLD` | Umbral mínimo de similitud para filtrar resultados (por defecto `0.2`) |
+
+> Con Docker, los valores por defecto de `.env.example` (`localhost`, puertos `6333` y `5432`) ya coinciden con los contenedores. No hace falta cambiarlos.
+
+---
+
+## Infraestructura con Docker
+
+El archivo `docker-compose.yml` levanta los servicios de persistencia que necesita el proyecto. La API, el pipeline RAG y el frontend se ejecutan en el host (no van en contenedores).
+
+| Servicio | Imagen | Puerto | Descripción |
+|---|---|---|---|
+| `qdrant` | `qdrant/qdrant:latest` | `6333`, `6334` | Búsqueda vectorial para el chat RAG |
+| `postgres` | `postgres:17` | `5432` | Registros de precios para KPIs, heatmap y mercados |
+
+Al iniciar Postgres por primera vez, se ejecuta automáticamente `api/sql/init.sql` y crea la tabla `producto` con sus índices.
+
+### Levantar los servicios
+
+Desde la raíz del repositorio:
+
+```bash
+docker compose up -d
+```
+
+Comprueba que estén activos:
+
+```bash
+docker compose ps
+```
+
+Salida esperada: `sniim-qdrant` y `sniim-postgres` en estado `running`.
+
+### Ver logs
+
+```bash
+# Todos los servicios
+docker compose logs -f
+
+# Solo uno
+docker compose logs -f qdrant
+docker compose logs -f postgres
+```
+
+### Detener y eliminar
+
+```bash
+# Detener contenedores (conserva datos en volúmenes)
+docker compose down
+
+# Detener y borrar volúmenes (base de datos y vectores desde cero)
+docker compose down -v
+```
+
+> Usa `down -v` solo si quieres reiniciar la indexación completa. Los datos de Qdrant y Postgres se pierden.
+
+### Credenciales por defecto (Postgres)
+
+Coinciden con `.env.example`:
+
+| Variable | Valor |
+|---|---|
+| `POSTGRES_DB` | `sniim` |
+| `POSTGRES_USER` | `postgres` |
+| `POSTGRES_PASSWORD` | `postgres` |
+
+### URLs de comprobación
+
+- **Qdrant dashboard:** [http://localhost:6333/dashboard](http://localhost:6333/dashboard)
+- **Postgres:** `psql -h localhost -U postgres -d sniim` (contraseña: `postgres`)
 
 ---
 
@@ -81,9 +156,9 @@ El archivo generado se guarda automáticamente en `../data/platano_tabasco.json`
 
 ---
 
-### 2. RAG — Generar embeddings e indexar en Supabase
+### 2. RAG — Generar embeddings e indexar
 
-Procesa el JSON, genera los embeddings de cada registro y los inserta en la tabla `producto` de Supabase.
+Procesa el JSON, genera embeddings con OpenAI y los indexa en Qdrant (vectores) y Postgres (registros para el dashboard).
 
 ```bash
 cd rag
@@ -91,11 +166,7 @@ pip install -r requirements.txt
 python embed.py
 ```
 
-> Si usas Ollama, asegúrate de que el servidor esté corriendo y el modelo descargado:
-> ```bash
-> ollama serve
-> ollama pull nomic-embed-text
-> ```
+Antes de indexar, levanta la infraestructura con Docker (`docker compose up -d`) o asegúrate de que Qdrant y PostgreSQL estén accesibles en los hosts configurados en `.env`.
 
 ---
 
@@ -105,6 +176,7 @@ Expone los endpoints REST que consume el frontend.
 
 ```bash
 cd api
+pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
@@ -151,12 +223,12 @@ Portal SNIIM
 [scraper/] ──→ data/platano_tabasco.json
                         │
                         ▼
-               [rag/embed.py] ──→ Supabase (pgvector)
+               [rag/embed.py] ──→ Qdrant (vectores) + Postgres (registros)
                                           │
                               ┌───────────┴───────────┐
                               ▼                       ▼
                      [api/main.py]              [rag/rag.py]
-                     (FastAPI REST)          (Pipeline RAG + LLM)
+                     (FastAPI REST)          (Pipeline RAG + gpt-4o-mini)
                               │                       │
                               └───────────┬───────────┘
                                           ▼
@@ -174,4 +246,4 @@ El chat responde preguntas en lenguaje natural sobre los precios de plátano, po
 - *"¿Qué mercados tienen el precio más bajo?"*
 - *"Compara los precios de Villahermosa con los de Ciudad de México"*
 
-El pipeline RAG recupera los registros más relevantes de Supabase mediante búsqueda vectorial y los envía al LLM (OpenAI) para generar una respuesta fundamentada únicamente en los datos disponibles.
+El pipeline RAG recupera los registros más relevantes de Qdrant mediante búsqueda vectorial (embeddings OpenAI) y los envía a **gpt-4o-mini** para generar una respuesta fundamentada únicamente en los datos disponibles.

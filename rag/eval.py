@@ -29,11 +29,11 @@ from rag import rag_query  # carga config.py → load_dotenv() → OPENAI_API_KE
 _lc_embeddings = LCOpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL, api_key=OPENAI_API_KEY)
 
 PREGUNTAS_EVAL: list[str] = [
-    "¿Cuál fue el precio más alto en enero de 2025?",
-    "¿Qué mercados tienen el precio más bajo?",
-    "Compara los precios de Villahermosa con los de Ciudad de México",
-    "¿Cuál es la tendencia de precios en el último mes?",
-    "¿Qué presentaciones tienen mayor variación de precio?",
+    "¿Cuánto costó el plátano en Jalisco en octubre de 2025?",
+    "¿Qué origen ofrece los precios más bajos en Tamaulipas?",
+    "¿Cómo variaron los precios en Sonora entre enero y diciembre de 2025?",
+    "¿Cuál fue el precio frecuente en Coahuila en agosto de 2025?",
+    "¿Qué presentación tiene mayor variación de precio en Veracruz?",
 ]
 
 

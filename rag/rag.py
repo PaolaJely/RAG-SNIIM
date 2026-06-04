@@ -45,9 +45,9 @@ def retriever(
         )
 
     try:
-        resultados = qdrant.search(
+        respuesta_qdrant = qdrant.query_points(
             collection_name=config.QDRANT_COLLECTION,
-            query_vector=query_embedding,
+            query=query_embedding,
             limit=min(k * 2, 20),
             query_filter=search_filter,
             with_payload=True,
@@ -55,7 +55,7 @@ def retriever(
 
         documentos = [
             {**r.payload, "similarity": r.score}
-            for r in resultados
+            for r in respuesta_qdrant.points
             if r.score >= config.SIMILARITY_THRESHOLD
         ]
 
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     print(f"\n{'='*70}")
     print("🍌 RAG - SISTEMA DE PRECIOS DE PLÁTANOS SNIIM")
     print(f"{'='*70}")
-    print(f"📌 Embeddings: {config.PROVIDER.upper()}")
+    print(f"📌 Embeddings: OpenAI ({config.OPENAI_EMBEDDING_MODEL})")
     print(f"📌 LLM: OpenAI ({config.OPENAI_LLM_MODEL})")
     print(f"📌 Qdrant: {config.QDRANT_HOST}:{config.QDRANT_PORT}/{config.QDRANT_COLLECTION}")
     print(f"📌 Top-{config.SEARCH_K} docs | Umbral: {config.SIMILARITY_THRESHOLD}")

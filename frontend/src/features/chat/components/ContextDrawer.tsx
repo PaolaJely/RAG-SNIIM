@@ -120,8 +120,8 @@ export function ContextDrawer({ open, onClose, docs }: Props) {
                 </p>
                 <div className="space-y-2">
                   {[
-                    { emoji: "🦙", name: "nomic-embed-text", detail: "Embeddings · Ollama" },
-                    { emoji: "🤖", name: "GPT-4", detail: "Generación · OpenAI" },
+                    { emoji: "🔢", name: "text-embedding-3-small", detail: "Embeddings · OpenAI" },
+                    { emoji: "🤖", name: "gpt-4o-mini", detail: "Generación · OpenAI" },
                   ].map((m) => (
                     <div key={m.name} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-surface border border-border">
                       <span className="text-sm leading-none">{m.emoji}</span>
