@@ -6,9 +6,14 @@
  * module as the single source of truth for base URL and error shape.
  */
 
-export const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+/**
+ * Base URL de la API.
+ * - Dev con proxy Vite (túnel incluido): dejar vacío → peticiones relativas /api/*
+ * - Producción o API remota: VITE_API_URL=https://tu-api.com
+ */
+export const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
-export class ApiError extends Error {
+class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,

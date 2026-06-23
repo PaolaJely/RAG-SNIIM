@@ -56,6 +56,7 @@ export function Sidebar({ expanded, onToggle }: Props) {
           </p>
         )}
         <button
+          type="button"
           onClick={onToggle}
           aria-label={expanded ? "Contraer menú" : "Expandir menú"}
           className="w-full flex items-center justify-center py-2 rounded-lg text-white/25 hover:text-white/55 hover:bg-white/5 transition-all duration-150"

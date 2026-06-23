@@ -3,14 +3,14 @@ import { useMarkets } from "../../markets/hooks/useMarkets";
 import { formatPriceShort } from "../../../lib/format";
 
 const RANK_COLORS = [
-  { bar: "#1B4F72", text: "text-white" },
-  { bar: "#2471A3", text: "text-white" },
-  { bar: "#2E86C1", text: "text-white" },
-  { bar: "#5DADE2", text: "text-white" },
-  { bar: "#7FB3D5", text: "text-foreground" },
-  { bar: "#A9CCE3", text: "text-foreground" },
-  { bar: "#D6EAF8", text: "text-foreground" },
-  { bar: "#EBF5FB", text: "text-foreground" },
+  { bar: "#1B4F72", textOnBar: "text-white" },
+  { bar: "#2471A3", textOnBar: "text-white" },
+  { bar: "#2E86C1", textOnBar: "text-white" },
+  { bar: "#5DADE2", textOnBar: "text-white" },
+  { bar: "#7FB3D5", textOnBar: "text-slate-900" },
+  { bar: "#A9CCE3", textOnBar: "text-slate-900" },
+  { bar: "#D6EAF8", textOnBar: "text-slate-900" },
+  { bar: "#EBF5FB", textOnBar: "text-slate-900" },
 ];
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -55,13 +55,13 @@ export function TopMarketsRanking() {
       {loading ? (
         <RankingSkeleton />
       ) : (
-        <div className="space-y-2.5" role="list" aria-label="Ranking de mercados">
+        <ol className="space-y-2.5" aria-label="Ranking de mercados">
           {top.map((market, index) => {
             const widthPct = (market.precio_promedio / maxPrice) * 100;
             const colors = RANK_COLORS[index] ?? RANK_COLORS[RANK_COLORS.length - 1];
 
             return (
-              <div key={market.nombre} className="flex items-center gap-2.5" role="listitem">
+              <li key={market.nombre} className="flex items-center gap-2.5">
                 <div
                   className={[
                     "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
@@ -80,21 +80,17 @@ export function TopMarketsRanking() {
                   <div
                     className="h-full flex items-center justify-end pr-2.5 rounded-md transition-all duration-500 ease-out"
                     style={{ width: `${Math.max(widthPct, 12)}%`, backgroundColor: colors.bar }}
-                    role="meter"
                     aria-label={`${market.nombre}: ${formatPriceShort(market.precio_promedio)}/kg`}
-                    aria-valuenow={market.precio_promedio}
-                    aria-valuemin={0}
-                    aria-valuemax={maxPrice}
                   >
-                    <span className={`text-[10px] font-semibold ${colors.text} whitespace-nowrap`}>
+                    <span className={`text-[10px] font-semibold ${colors.textOnBar} whitespace-nowrap`}>
                       {formatPriceShort(market.precio_promedio)}
                     </span>
                   </div>
                 </div>
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ol>
       )}
     </div>
   );

@@ -17,13 +17,11 @@ const OPTIONS: { value: PriceGranularity; label: string }[] = [
  */
 export const GranularityToggle = memo(function GranularityToggle({ value, onChange }: Props) {
   return (
-    <div
-      className="flex gap-1 bg-muted rounded-lg p-1"
-      role="group"
-      aria-label="Granularidad del gráfico"
-    >
+    <fieldset className="flex gap-1 bg-muted rounded-lg p-1 border-0 min-w-0">
+      <legend className="sr-only">Granularidad del gráfico</legend>
       {OPTIONS.map((opt) => (
         <button
+          type="button"
           key={opt.value}
           onClick={() => onChange(opt.value)}
           aria-pressed={value === opt.value}
@@ -37,6 +35,6 @@ export const GranularityToggle = memo(function GranularityToggle({ value, onChan
           {opt.label}
         </button>
       ))}
-    </div>
+    </fieldset>
   );
 });

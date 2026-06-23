@@ -1,0 +1,14 @@
+# Contexto Docker para api/Dockerfile (raíz del repo)
+.git
+.env
+*.md
+frontend/
+scraper/
+stagehand/
+data/
+__pycache__
+*.pyc
+.pytest_cache
+node_modules
+.venv
+venv

@@ -44,6 +44,7 @@ export function ChatIA() {
           {isWelcome ? "Nueva conversación" : `${userMessageCount} preguntas`}
         </span>
         <button
+          type="button"
           onClick={openDrawer}
           aria-label="Ver documentos recuperados"
           className={[

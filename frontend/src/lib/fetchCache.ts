@@ -26,11 +26,11 @@ export function getCached<T>(key: string, staleMs = DEFAULT_STALE_MS): T | null 
   return entry.data;
 }
 
-export function setCached(key: string, data: unknown): void {
+function setCached(key: string, data: unknown): void {
   cache.set(key, { data, ts: Date.now() });
 }
 
-export function invalidateCache(keyPrefix?: string): void {
+function invalidateCache(keyPrefix?: string): void {
   if (!keyPrefix) {
     cache.clear();
     return;

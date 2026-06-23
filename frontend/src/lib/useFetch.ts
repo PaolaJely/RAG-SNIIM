@@ -19,17 +19,39 @@ interface FetchState<T> {
   refetch: () => void;
 }
 
+function buildDepsKey(deps: unknown[]): string {
+  return deps.map((d) => JSON.stringify(d)).join("\0");
+}
+
+function readCachedState<T>(cacheKey?: string): Pick<FetchState<T>, "data" | "loading" | "error"> {
+  const cached = cacheKey ? getCached<T>(cacheKey) : null;
+  return {
+    data: cached,
+    loading: cached === null,
+    error: null,
+  };
+}
+
 export function useFetch<T>(
   queryFn: () => Promise<T>,
   deps: unknown[],
   cacheKey?: string,
 ): FetchState<T> {
-  const cachedInitial = cacheKey ? getCached<T>(cacheKey) : null;
-
-  const [data, setData] = useState<T | null>(cachedInitial);
-  const [loading, setLoading] = useState(cachedInitial === null);
-  const [error, setError] = useState<string | null>(null);
+  const depsKey = buildDepsKey(deps);
   const [tick, setTick] = useState(0);
+  const requestKey = `${cacheKey ?? ""}|${depsKey}`;
+
+  const [prevRequestKey, setPrevRequestKey] = useState(requestKey);
+  const [prevTick, setPrevTick] = useState(tick);
+  const [state, setState] = useState(() => readCachedState<T>(cacheKey));
+
+  if (requestKey !== prevRequestKey) {
+    setPrevRequestKey(requestKey);
+    setState(readCachedState<T>(cacheKey));
+  } else if (tick !== prevTick) {
+    setPrevTick(tick);
+    setState({ data: null, loading: true, error: null });
+  }
 
   const mounted = useRef(true);
 
@@ -41,41 +63,36 @@ export function useFetch<T>(
   }, []);
 
   useEffect(() => {
+    if (!state.loading) return;
+
     let cancelled = false;
 
-    // Reset stale data from a previous key so components never display
-    // data that belongs to a different filter value. If the new key is
-    // already cached, fetchWithCache will resolve immediately and data
-    // will be repopulated before the next paint.
-    setData(null);
-    setLoading(true);
-    setError(null);
-
-    const fetch = cacheKey
+    const run = cacheKey
       ? fetchWithCache<T>(cacheKey, queryFn)
       : queryFn();
 
-    fetch
+    run
       .then((result) => {
         if (!cancelled && mounted.current) {
-          setData(result);
-          setLoading(false);
+          setState({ data: result, loading: false, error: null });
         }
       })
       .catch((err: unknown) => {
         if (!cancelled && mounted.current) {
-          setError(err instanceof Error ? err.message : "Error desconocido");
-          setLoading(false);
+          setState({
+            data: null,
+            loading: false,
+            error: err instanceof Error ? err.message : "Error desconocido",
+          });
         }
       });
 
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, tick]);
+  }, [requestKey, tick, state.loading, cacheKey, queryFn]);
 
   const refetch = useCallback(() => setTick((t) => t + 1), []);
 
-  return { data, loading, error, refetch };
+  return { ...state, refetch };
 }

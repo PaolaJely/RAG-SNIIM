@@ -12,6 +12,7 @@ export const ThemeToggle = memo(function ThemeToggle() {
 
   return (
     <button
+      type="button"
       onClick={() => setTheme(isDark ? "light" : "dark")}
       className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
       aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}

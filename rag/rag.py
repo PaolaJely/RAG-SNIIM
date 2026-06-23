@@ -1,5 +1,4 @@
 from typing import List, Tuple, Dict, Optional
-from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
@@ -8,9 +7,10 @@ from langchain_community.callbacks import get_openai_callback
 import config
 from embeddings_factory import embeddings
 from compressor import formatear_contexto_toon
+from qdrant_client_factory import get_qdrant_client
 
 # ==================== INICIALIZACIÓN ====================
-qdrant = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
+qdrant = get_qdrant_client()
 
 llm = ChatOpenAI(
     model=config.OPENAI_LLM_MODEL,

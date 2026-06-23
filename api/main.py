@@ -115,6 +115,12 @@ def _parse_month(fecha: str) -> str:
 
 # ==================== ENDPOINTS ====================
 
+@app.get("/health")
+def health():
+    """Health check para Render / balanceadores."""
+    return {"status": "ok"}
+
+
 @app.get("/api/kpis")
 def get_kpis(destino: Optional[str] = Query(None)):
     """KPI cards del Dashboard."""

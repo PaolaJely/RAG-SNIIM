@@ -36,6 +36,7 @@ export function DestinationFilter() {
   return (
     <div className="relative" ref={ref}>
       <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -76,7 +77,6 @@ export function DestinationFilter() {
           >
             <div className="p-2 border-b border-border">
               <input
-                autoFocus
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -85,9 +85,12 @@ export function DestinationFilter() {
                 className="w-full px-3 py-1.5 text-sm rounded-lg bg-surface border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand/30 focus:border-brand/40 transition-all"
               />
             </div>
-            <ul className="max-h-56 overflow-y-auto py-1" role="group">
-              <li role="option" aria-selected={!destino}>
+            <ul className="max-h-56 overflow-y-auto py-1">
+              <li>
                 <button
+                  type="button"
+                  role="option"
+                  aria-selected={!destino}
                   onClick={() => { clearDestino(); setOpen(false); setSearch(""); }}
                   className={`w-full text-left px-3 py-2 text-sm transition-colors ${!destino ? "text-brand font-medium bg-brand-muted/40" : "text-foreground hover:bg-muted"}`}
                 >
@@ -95,8 +98,11 @@ export function DestinationFilter() {
                 </button>
               </li>
               {filtered.map((n) => (
-                <li key={n} role="option" aria-selected={destino === n}>
+                <li key={n}>
                   <button
+                    type="button"
+                    role="option"
+                    aria-selected={destino === n}
                     onClick={() => { setDestino(n); setOpen(false); setSearch(""); }}
                     className={`w-full text-left px-3 py-2 text-sm transition-colors ${destino === n ? "text-brand font-medium bg-brand-muted/40" : "text-foreground hover:bg-muted"}`}
                   >

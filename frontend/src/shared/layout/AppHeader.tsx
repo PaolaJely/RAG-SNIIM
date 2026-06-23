@@ -15,9 +15,9 @@ export const AppHeader = memo(function AppHeader({ onMenuClick }: Props) {
   return (
     <header
       className="h-14 bg-surface-raised border-b border-border flex items-center px-4 lg:px-5 gap-3 shrink-0"
-      role="banner"
     >
       <button
+        type="button"
         className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-muted transition-colors text-foreground/60 hover:text-foreground"
         onClick={onMenuClick}
         aria-label="Abrir menú"

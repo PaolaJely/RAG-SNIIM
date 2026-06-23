@@ -11,6 +11,8 @@ DATA_DIR = BASE_DIR / "data"
 # ── Qdrant ─────────────────────────────────────────────
 QDRANT_HOST       = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT       = int(os.getenv("QDRANT_PORT", "6333"))
+QDRANT_URL        = os.getenv("QDRANT_URL", "")
+QDRANT_API_KEY    = os.getenv("QDRANT_API_KEY", "")
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "sniim")
 
 # ── Postgres ───────────────────────────────────────────
@@ -19,11 +21,12 @@ POSTGRES_PORT     = int(os.getenv("POSTGRES_PORT", "5432"))
 POSTGRES_DB       = os.getenv("POSTGRES_DB", "sniim")
 POSTGRES_USER     = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
+POSTGRES_SSLMODE  = os.getenv("POSTGRES_SSLMODE", "prefer")
 
 POSTGRES_DSN = (
     f"host={POSTGRES_HOST} port={POSTGRES_PORT} "
     f"dbname={POSTGRES_DB} user={POSTGRES_USER} "
-    f"password={POSTGRES_PASSWORD}"
+    f"password={POSTGRES_PASSWORD} sslmode={POSTGRES_SSLMODE}"
 )
 
 # ── OpenAI ─────────────────────────────────────────────

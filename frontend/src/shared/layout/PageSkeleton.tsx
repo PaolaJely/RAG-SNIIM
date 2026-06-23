@@ -9,7 +9,7 @@ export function PageSkeleton() {
     <div
       className="p-5 lg:p-7 xl:p-8 space-y-6 max-w-[1600px] mx-auto animate-pulse"
       aria-label="Cargando página…"
-      role="status"
+      aria-busy="true"
     >
       <div className="space-y-2">
         <div className="h-6 bg-muted rounded w-48" />

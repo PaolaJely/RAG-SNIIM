@@ -24,6 +24,7 @@ export const MercadoCard = memo(function MercadoCard({ market, index, globalMin,
   const range = globalMax - globalMin || 1;
   const relativePos = (market.precio_promedio - globalMin) / range;
   const barColor = getPriceBarColor(relativePos);
+  const barWidth = Math.max(relativePos * 100, 6);
 
   return (
     <motion.article
@@ -47,15 +48,12 @@ export const MercadoCard = memo(function MercadoCard({ market, index, globalMin,
         </p>
         <div
           className="mt-2 w-full bg-muted rounded-full h-1.5"
-          role="meter"
-          aria-label={`Precio relativo: ${Math.round(relativePos * 100)}% del rango`}
-          aria-valuenow={Math.round(relativePos * 100)}
-          aria-valuemin={0}
-          aria-valuemax={100}
+          aria-label={`Precio relativo: ${Math.round(relativePos * 100)}% del rango nacional`}
         >
           <div
             className={`h-1.5 rounded-full transition-all duration-500 ${barColor}`}
-            style={{ width: `${Math.max(relativePos * 100, 6)}%` }}
+            style={{ width: `${barWidth}%` }}
+            aria-hidden="true"
           />
         </div>
       </div>

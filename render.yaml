@@ -1,0 +1,43 @@
+# Render Blueprint — deploy de la API
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Uso: en Render → New → Blueprint → conecta este repo.
+# Configura las env vars marcadas sync: false en el dashboard.
+
+services:
+  - type: web
+    name: rag-sniim-api
+    runtime: docker
+    dockerfilePath: ./api/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: QDRANT_COLLECTION
+        value: sniim
+      - key: POSTGRES_HOST
+        sync: false
+      - key: POSTGRES_PORT
+        value: "5432"
+      - key: POSTGRES_DB
+        sync: false
+      - key: POSTGRES_USER
+        sync: false
+      - key: POSTGRES_PASSWORD
+        sync: false
+      - key: POSTGRES_SSLMODE
+        value: require
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_LLM_MODEL
+        value: gpt-4o-mini
+      - key: OPENAI_EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: SEARCH_K
+        value: "16"
+      - key: SIMILARITY_THRESHOLD
+        value: "0.2"

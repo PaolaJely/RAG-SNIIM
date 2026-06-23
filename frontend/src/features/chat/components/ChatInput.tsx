@@ -41,6 +41,7 @@ export function ChatInput({ value, onChange, onSend, sending, showChips = false 
           <div className="flex flex-wrap gap-1.5">
             {QUICK_CHIPS.map((c) => (
               <button
+                type="button"
                 key={c.text}
                 onClick={() => onSend(c.text)}
                 disabled={sending}
@@ -75,6 +76,7 @@ export function ChatInput({ value, onChange, onSend, sending, showChips = false 
             style={{ minHeight: "24px", maxHeight: "140px" }}
           />
           <button
+            type="button"
             onClick={() => onSend()}
             disabled={!canSend}
             aria-label="Enviar mensaje"

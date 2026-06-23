@@ -6,7 +6,7 @@
  * not state management.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useLocation } from "react-router";
 
 const STORAGE_KEY = "sniim-sidebar";
@@ -38,10 +38,11 @@ export function useSidebarState(): SidebarState {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { pathname } = useLocation();
 
-  // Dismiss mobile sidebar whenever the user navigates to a new route.
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    if (mobileOpen) setMobileOpen(false);
+  }
 
   const toggleExpanded = useCallback(() => {
     setExpanded((prev) => {

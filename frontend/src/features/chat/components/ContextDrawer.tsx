@@ -2,6 +2,10 @@ import { X, Database, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import type { RagDocument } from "../../../types/chat";
 
+function docKey(doc: RagDocument): string {
+  return `${doc.fecha}|${doc.origen}|${doc.destino}|${doc.precio_frec}`;
+}
+
 function DocCard({ doc, index }: { doc: RagDocument; index: number }) {
   const pct = Math.round(doc.similarity * 100);
   return (
@@ -26,18 +30,12 @@ function DocCard({ doc, index }: { doc: RagDocument; index: number }) {
         </span>
         <span className="text-[11px] text-muted-foreground">{doc.fecha}</span>
       </div>
-      <div
-        className="w-full bg-muted rounded-full h-1"
-        role="progressbar"
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <div
-          className="bg-brand h-1 rounded-full transition-all duration-700"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      <progress
+        className="w-full h-1 rounded-full overflow-hidden [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-value]:bg-brand [&::-webkit-progress-value]:rounded-full"
+        value={pct}
+        max={100}
+        aria-label={`Similitud ${pct}%`}
+      />
     </motion.div>
   );
 }
@@ -83,6 +81,7 @@ export function ContextDrawer({ open, onClose, docs }: Props) {
                 )}
               </div>
               <button
+                type="button"
                 onClick={onClose}
                 aria-label="Cerrar panel"
                 className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
@@ -106,7 +105,7 @@ export function ContextDrawer({ open, onClose, docs }: Props) {
                 ) : (
                   <div className="space-y-2">
                     {docs.slice(0, 5).map((doc, i) => (
-                      <DocCard key={i} doc={doc} index={i} />
+                      <DocCard key={docKey(doc)} doc={doc} index={i} />
                     ))}
                   </div>
                 )}

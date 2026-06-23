@@ -51,6 +51,7 @@ export function WelcomeScreen({ onSuggest }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-2xl">
         {SUGGESTIONS.map((s) => (
           <button
+            type="button"
             key={s.text}
             onClick={() => onSuggest(s.text)}
             className="group text-left rounded-xl border border-border bg-surface-raised p-4 hover:border-brand/40 hover:bg-surface hover:shadow-sm transition-all duration-200"

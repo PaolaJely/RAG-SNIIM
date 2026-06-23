@@ -3,13 +3,17 @@ import uuid
 import psycopg2
 import config
 from pathlib import Path
-from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 from embeddings_factory import embeddings
+from qdrant_client_factory import get_qdrant_client
 
 # ── Conexiones ─────────────────────────────────────────
-qdrant = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
-pg     = psycopg2.connect(config.POSTGRES_DSN)
+qdrant = get_qdrant_client()
+
+
+def _pg_connect():
+    return psycopg2.connect(config.POSTGRES_DSN)
+
 
 BATCH_SIZE = 30
 
@@ -63,9 +67,14 @@ def index_file(json_path: Path, producto_id: str = "732") -> None:
     vector_size = get_vector_size()
     ensure_qdrant_collection(vector_size)
 
+    pg = _pg_connect()
     cur = pg.cursor()
+    cur.execute("SELECT COUNT(*) FROM producto")
+    start = cur.fetchone()[0]
+    if start > 0:
+        print(f"↪ Reanudando desde registro {start} ({start / total * 100:.1f}%)")
 
-    for i in range(0, total, BATCH_SIZE):
+    for i in range(start, total, BATCH_SIZE):
         batch    = data[i: i + BATCH_SIZE]
         contenidos = [build_contenido(r) for r in batch]
 
@@ -123,12 +132,25 @@ def index_file(json_path: Path, producto_id: str = "732") -> None:
             print(f"  {progreso}/{total} ({progreso / total * 100:.1f}%)")
 
         except Exception as e:
-            pg.rollback()
-            print(f"❌ Error en lote {i}: {e}")
+            try:
+                pg.rollback()
+            except psycopg2.InterfaceError:
+                pass
+            try:
+                pg.close()
+            except Exception:
+                pass
+            pg = _pg_connect()
+            cur = pg.cursor()
+            print(f"❌ Error en lote {i}: {e} — reconectado, reintenta con: python embed.py")
 
     cur.close()
     pg.close()
-    print(f"✅ Completado: {total} registros en Qdrant y Postgres")
+    cur2 = _pg_connect().cursor()
+    cur2.execute("SELECT COUNT(*) FROM producto")
+    inserted = cur2.fetchone()[0]
+    cur2.connection.close()
+    print(f"✅ Completado: {inserted}/{total} registros en Postgres (Qdrant actualizado en lotes)")
 
 
 if __name__ == "__main__":

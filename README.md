@@ -62,6 +62,9 @@ cp .env.example .env
 | `POSTGRES_DB` | Nombre de la base de datos |
 | `POSTGRES_USER` | Usuario de PostgreSQL |
 | `POSTGRES_PASSWORD` | Contraseña de PostgreSQL |
+| `POSTGRES_SSLMODE` | Modo SSL (`prefer` local, `require` en Neon) |
+| `QDRANT_URL` | URL de Qdrant Cloud (producción; opcional en local) |
+| `QDRANT_API_KEY` | API key de Qdrant Cloud (producción; opcional en local) |
 | `OPENAI_API_KEY` | API key de OpenAI |
 | `OPENAI_LLM_MODEL` | Modelo LLM (por defecto `gpt-4o-mini`) |
 | `OPENAI_EMBEDDING_MODEL` | Modelo de embeddings (por defecto `text-embedding-3-small`) |
@@ -69,6 +72,14 @@ cp .env.example .env
 | `SIMILARITY_THRESHOLD` | Umbral mínimo de similitud para filtrar resultados (por defecto `0.2`) |
 
 > Con Docker, los valores por defecto de `.env.example` (`localhost`, puertos `6333` y `5432`) ya coinciden con los contenedores. No hace falta cambiarlos.
+
+### Deploy en producción (gratuito)
+
+Para publicar con **Qdrant Cloud**, **Neon**, **Render** y **Cloudflare Pages**, sigue la guía paso a paso:
+
+**[docs/DEPLOY.md](docs/DEPLOY.md)**
+
+El repo incluye `api/Dockerfile`, `render.yaml` y soporte para Qdrant Cloud (`QDRANT_URL` + `QDRANT_API_KEY`).
 
 ---
 

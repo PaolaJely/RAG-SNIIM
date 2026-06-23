@@ -17,6 +17,18 @@ export default defineConfig({
     },
   },
 
+  server: {
+    host: true,
+    // Proxy /api → FastAPI local. Permite compartir el dashboard con un solo túnel
+    // (cloudflared, ngrok, etc.) sin exponer el backend por separado.
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    },
+  },
+
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
 })
