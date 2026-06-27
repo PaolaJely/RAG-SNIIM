@@ -5,13 +5,19 @@ export interface MonthlyPrice {
   precio_max: number | null;
 }
 
-export interface CandlestickPrice extends MonthlyPrice {
+export interface CandlestickPrice {
+  period: string;
+  start_date: string;
+  end_date: string;
   open: number;
-  close: number;
-  low: number;
   high: number;
+  low: number;
+  close: number;
+  observations: number;
   range: [number, number];
   changePct: number;
+  movingAverageShort: number | null;
+  movingAverageLong: number | null;
 }
 
 export interface HeatmapData {
@@ -20,4 +26,4 @@ export interface HeatmapData {
   data: Record<string, Record<string, number | null>>;
 }
 
-export type PriceGranularity = "month" | "quarter";
+export type PriceGranularity = "week" | "month";

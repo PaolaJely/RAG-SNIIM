@@ -7,8 +7,8 @@ interface Props {
 }
 
 const OPTIONS: { value: PriceGranularity; label: string }[] = [
+  { value: "week", label: "Semanal" },
   { value: "month", label: "Mensual" },
-  { value: "quarter", label: "Trimestral" },
 ];
 
 /**

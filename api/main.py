@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "rag"))
 
 from collections import defaultdict
+from datetime import datetime
 from typing import Optional
 import time
 import threading
@@ -113,6 +114,14 @@ def _parse_month(fecha: str) -> str:
         return ""
 
 
+def _parse_date(fecha: str):
+    """Convierte la fecha SNIIM DD/MM/YYYY a date para ordenar correctamente."""
+    try:
+        return datetime.strptime(fecha, "%d/%m/%Y").date()
+    except (TypeError, ValueError):
+        return None
+
+
 # ==================== ENDPOINTS ====================
 
 @app.get("/health")
@@ -198,6 +207,82 @@ def get_precios_mensual(destino: Optional[str] = Query(None)):
             "precio_frec": round(sum(d["frec"]) / len(d["frec"]), 2),
             "precio_min":  round(min(d["min"]),  2) if d["min"]  else None,
             "precio_max":  round(max(d["max"]),  2) if d["max"]  else None,
+        })
+
+    return result
+
+
+@app.get("/api/precios/ohlc")
+def get_precios_ohlc(
+    destino: Optional[str] = Query(None),
+    granularidad: str = Query("week", pattern="^(week|month)$"),
+):
+    """Velas OHLC derivadas exclusivamente de observaciones almacenadas en Neon.
+
+    Como SNIIM publica una observación diaria por mercado, la apertura y el
+    cierre corresponden al promedio del precio frecuente en la primera y
+    última fecha disponible del periodo. Los extremos provienen directamente
+    de precio_min y precio_max. `observaciones` sustituye al volumen bursátil.
+    """
+    rows = _all_records(destino)
+    periods: dict[tuple, dict] = {}
+
+    for row in rows:
+        date = _parse_date(row.get("fecha"))
+        if date is None or row.get("precio_frec") is None:
+            continue
+
+        if granularidad == "week":
+            iso_year, iso_week, _ = date.isocalendar()
+            key = (iso_year, iso_week)
+        else:
+            key = (date.year, date.month)
+
+        period = periods.setdefault(
+            key,
+            {
+                "dates": defaultdict(list),
+                "highs": [],
+                "lows": [],
+                "observations": 0,
+            },
+        )
+        period["dates"][date].append(row["precio_frec"])
+        if row.get("precio_max") is not None:
+            period["highs"].append(row["precio_max"])
+        if row.get("precio_min") is not None:
+            period["lows"].append(row["precio_min"])
+        period["observations"] += 1
+
+    result = []
+    for key in sorted(periods):
+        period = periods[key]
+        dates = sorted(period["dates"])
+        first_date, last_date = dates[0], dates[-1]
+        open_value = sum(period["dates"][first_date]) / len(period["dates"][first_date])
+        close_value = sum(period["dates"][last_date]) / len(period["dates"][last_date])
+        high_value = max(period["highs"]) if period["highs"] else max(open_value, close_value)
+        low_value = min(period["lows"]) if period["lows"] else min(open_value, close_value)
+
+        # Conserva la coherencia OHLC aun cuando un registro incompleto no
+        # incluya extremos que alcancen la apertura o el cierre agregados.
+        high_value = max(high_value, open_value, close_value)
+        low_value = min(low_value, open_value, close_value)
+
+        if granularidad == "week":
+            label = f"{first_date.day:02d} {MESES[f'{first_date.month:02d}']}"
+        else:
+            label = MESES[f"{key[1]:02d}"]
+
+        result.append({
+            "period": label,
+            "start_date": first_date.isoformat(),
+            "end_date": last_date.isoformat(),
+            "open": round(open_value, 2),
+            "high": round(high_value, 2),
+            "low": round(low_value, 2),
+            "close": round(close_value, 2),
+            "observations": period["observations"],
         })
 
     return result
