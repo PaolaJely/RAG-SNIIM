@@ -4,7 +4,7 @@
  * Owns:
  *  - granularity UI state
  *  - monthly → quarterly aggregation (pure transformation)
- *  - peak row derivation
+ *  - candlestick derivation
  *
  * Keeps PriceTrendChart free of business logic so it only
  * describes how the chart looks, not how the data is shaped.
@@ -12,7 +12,11 @@
 
 import { useState, useMemo } from "react";
 import { usePriceTrend } from "./usePriceTrend";
-import type { MonthlyPrice, PriceGranularity } from "../../../types/prices";
+import type {
+  CandlestickPrice,
+  MonthlyPrice,
+  PriceGranularity,
+} from "../../../types/prices";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -44,18 +48,29 @@ function aggregateToQuarters(data: MonthlyPrice[]): MonthlyPrice[] {
   });
 }
 
-function findPeakRow(data: MonthlyPrice[]): MonthlyPrice | null {
-  return data.reduce<MonthlyPrice | null>(
-    (best, row) => (row.precio_frec > (best?.precio_frec ?? 0) ? row : best),
-    null,
-  );
+function toCandlesticks(data: MonthlyPrice[]): CandlestickPrice[] {
+  return data.map((row, index) => {
+    const open = index === 0 ? row.precio_frec : data[index - 1].precio_frec;
+    const close = row.precio_frec;
+    const low = Math.min(row.precio_min ?? Math.min(open, close), open, close);
+    const high = Math.max(row.precio_max ?? Math.max(open, close), open, close);
+
+    return {
+      ...row,
+      open,
+      close,
+      low,
+      high,
+      range: [low, high],
+      changePct: open ? ((close - open) / open) * 100 : 0,
+    };
+  });
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export interface PriceTrendChartState {
-  chartData: MonthlyPrice[];
-  peakRow: MonthlyPrice | null;
+  chartData: CandlestickPrice[];
   granularity: PriceGranularity;
   setGranularity: (g: PriceGranularity) => void;
   loading: boolean;
@@ -67,10 +82,10 @@ export function usePriceTrendChart(): PriceTrendChartState {
 
   const chartData = useMemo(() => {
     if (!monthly) return [];
-    return granularity === "quarter" ? aggregateToQuarters(monthly) : monthly;
+    const periodData =
+      granularity === "quarter" ? aggregateToQuarters(monthly) : monthly;
+    return toCandlesticks(periodData);
   }, [monthly, granularity]);
 
-  const peakRow = useMemo(() => findPeakRow(chartData), [chartData]);
-
-  return { chartData, peakRow, granularity, setGranularity, loading };
+  return { chartData, granularity, setGranularity, loading };
 }

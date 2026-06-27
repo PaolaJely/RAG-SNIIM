@@ -1,61 +1,116 @@
 import { useMemo } from "react";
 import {
-  AreaChart,
-  Area,
-  Line,
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceDot,
 } from "recharts";
 import { usePriceTrendChart } from "../hooks/usePriceTrendChart";
 import { ChartSkeleton } from "./ChartSkeleton";
 import { GranularityToggle } from "./GranularityToggle";
 import { PriceRangeTooltip } from "./PriceRangeTooltip";
+import type { CandlestickPrice } from "../../../types/prices";
 
 const COLORS = {
-  primary: "#1B4F72",
-  muted: "#94a3b8",
-  peak: "#F4D03F",
+  rising: "#16a34a",
+  falling: "#dc2626",
 } as const;
 
-export function PriceTrendChartView() {
-  const { chartData, peakRow, granularity, setGranularity, loading } =
-    usePriceTrendChart();
+interface CandleShapeProps {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: CandlestickPrice;
+}
 
+function Candlestick({
+  x = 0,
+  y = 0,
+  width = 0,
+  height = 0,
+  payload,
+}: CandleShapeProps) {
+  if (!payload) return null;
+
+  const { open, close, low, high } = payload;
+  const rising = close >= open;
+  const color = rising ? COLORS.rising : COLORS.falling;
+  const scale = high === low ? 0 : height / (high - low);
+  const bodyTop = y + (high - Math.max(open, close)) * scale;
+  const rawBodyHeight = Math.abs(open - close) * scale;
+  const bodyHeight = Math.max(rawBodyHeight, 3);
+  const candleWidth = Math.min(Math.max(width * 0.48, 8), 28);
+  const center = x + width / 2;
+
+  return (
+    <g role="img" aria-label={`${payload.month}: apertura ${open}, cierre ${close}`}>
+      <line
+        x1={center}
+        x2={center}
+        y1={y}
+        y2={y + height}
+        stroke={color}
+        strokeWidth={1.5}
+      />
+      <rect
+        x={center - candleWidth / 2}
+        y={bodyTop}
+        width={candleWidth}
+        height={bodyHeight}
+        rx={1.5}
+        fill={rising ? color : "var(--surface-raised)"}
+        stroke={color}
+        strokeWidth={2}
+      />
+    </g>
+  );
+}
+
+export function PriceTrendChartView() {
+  const { chartData, granularity, setGranularity, loading } =
+    usePriceTrendChart();
   const tooltipContent = useMemo(() => <PriceRangeTooltip />, []);
 
   return (
-    <div className="bg-surface-raised rounded-xl border border-border p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+    <div className="rounded-xl border border-border bg-surface-raised p-5">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground">
-            Evolución de Precios 2025
+            Velas de precios 2025
           </h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Precio frecuente con rango mín/máx (MXN/kg)
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Apertura, cierre y rango mín/máx · MXN/kg
           </p>
         </div>
-        <GranularityToggle value={granularity} onChange={setGranularity} />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <i className="h-2.5 w-2.5 rounded-sm bg-brand-success" /> Alza
+            </span>
+            <span className="flex items-center gap-1.5">
+              <i className="h-2.5 w-2.5 rounded-sm bg-brand-danger" /> Baja
+            </span>
+          </div>
+          <GranularityToggle value={granularity} onChange={setGranularity} />
+        </div>
       </div>
 
       {loading ? (
         <ChartSkeleton />
+      ) : chartData.length === 0 ? (
+        <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+          Sin datos de precios para mostrar
+        </div>
       ) : (
-        <ResponsiveContainer width="100%" height={240}>
-          <AreaChart
+        <ResponsiveContainer width="100%" height={280}>
+          <ComposedChart
             data={chartData}
-            margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+            margin={{ top: 12, right: 12, left: -4, bottom: 0 }}
           >
-            <defs>
-              <linearGradient id="gradRange" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={COLORS.primary} stopOpacity={0.15} />
-                <stop offset="100%" stopColor={COLORS.primary} stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-
             <CartesianGrid
               strokeDasharray="3 3"
               stroke="currentColor"
@@ -74,52 +129,21 @@ export function PriceTrendChartView() {
               className="text-muted-foreground"
               tickLine={false}
               axisLine={false}
-              tickFormatter={(v: number) => `$${v}`}
-              domain={[0, "auto"]}
-              width={42}
+              tickFormatter={(value: number) => `$${value}`}
+              domain={["dataMin - 2", "dataMax + 2"]}
+              width={48}
             />
             <Tooltip
               content={tooltipContent}
-              cursor={{
-                stroke: COLORS.primary,
-                strokeWidth: 1,
-                strokeDasharray: "4 2",
-              }}
+              cursor={{ fill: "currentColor", opacity: 0.04 }}
             />
-
-            <Area type="monotone" dataKey="precio_max" stroke="none" fill="url(#gradRange)" fillOpacity={1} />
-            <Area type="monotone" dataKey="precio_min" stroke="none" fill="white" fillOpacity={0} />
-
-            <Line type="monotone" dataKey="precio_min" stroke={COLORS.muted} strokeWidth={1} strokeDasharray="4 3" dot={false} />
-            <Line type="monotone" dataKey="precio_max" stroke={COLORS.muted} strokeWidth={1} strokeDasharray="4 3" dot={false} />
-
-            <Line
-              type="monotone"
-              dataKey="precio_frec"
-              stroke={COLORS.primary}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, fill: COLORS.primary, strokeWidth: 0 }}
+            <Bar
+              dataKey="range"
+              shape={<Candlestick />}
+              isAnimationActive
+              animationDuration={450}
             />
-
-            {peakRow && (
-              <ReferenceDot
-                x={peakRow.month}
-                y={peakRow.precio_frec}
-                r={4}
-                fill={COLORS.peak}
-                stroke={COLORS.primary}
-                strokeWidth={2}
-                label={{
-                  value: `Pico $${peakRow.precio_frec}`,
-                  position: "top",
-                  fill: COLORS.primary,
-                  fontSize: 10,
-                  offset: 8,
-                }}
-              />
-            )}
-          </AreaChart>
+          </ComposedChart>
         </ResponsiveContainer>
       )}
     </div>

@@ -5,6 +5,15 @@ export interface MonthlyPrice {
   precio_max: number | null;
 }
 
+export interface CandlestickPrice extends MonthlyPrice {
+  open: number;
+  close: number;
+  low: number;
+  high: number;
+  range: [number, number];
+  changePct: number;
+}
+
 export interface HeatmapData {
   destinos: string[];
   meses: string[];
