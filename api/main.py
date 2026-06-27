@@ -100,8 +100,18 @@ def _all_records(
         rows = _cache_data
 
     if destino:
-        destino_lower = destino.lower()
-        rows = [r for r in rows if r.get("destino", "").lower().startswith(destino_lower)]
+        destinos = [
+            item.strip().lower()
+            for item in destino.split("|")
+            if item.strip()
+        ]
+        rows = [
+            r for r in rows
+            if any(
+                r.get("destino", "").lower().startswith(selected)
+                for selected in destinos
+            )
+        ]
 
     return rows
 

@@ -3,7 +3,7 @@ import { getDayGreeting, formatLongDate } from "../../../lib/format";
 import { useFilterStore } from "../../../stores/filterStore.tsx";
 
 export function DashboardHeader() {
-  const { destino } = useFilterStore();
+  const { destinos } = useFilterStore();
 
   return (
     <motion.div
@@ -18,10 +18,14 @@ export function DashboardHeader() {
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5 capitalize">
           {formatLongDate()}
-          {destino && (
+          {destinos.length > 0 && (
             <>
               {" · "}
-              <span className="text-brand font-medium">{destino}</span>
+              <span className="text-brand font-medium">
+                {destinos.length === 1
+                  ? destinos[0]
+                  : `${destinos.length} mercados comparados`}
+              </span>
             </>
           )}
         </p>

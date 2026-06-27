@@ -13,6 +13,12 @@
  */
 export const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
+export function destinationParams(
+  destinos?: string[],
+): Record<string, string> | undefined {
+  return destinos?.length ? { destino: destinos.join("|") } : undefined;
+}
+
 class ApiError extends Error {
   constructor(
     public readonly status: number,

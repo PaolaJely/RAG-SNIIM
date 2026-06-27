@@ -1,44 +1,36 @@
-/**
- * Global destination filter store.
- *
- * Implemented with React Context + useState for zero extra dependencies.
- * Migration path → replace with Zustand `create()` when installed:
- *
- *   export const useFilterStore = create<FilterState>((set) => ({
- *     destino: "",
- *     setDestino: (d) => set({ destino: d }),
- *     clearDestino: () => set({ destino: "" }),
- *   }));
- */
-
 import {
   createContext,
-  useContext,
-  useState,
   useCallback,
+  useContext,
   useMemo,
+  useState,
   type ReactNode,
 } from "react";
 
 interface FilterState {
-  destino: string;
-  setDestino: (d: string) => void;
-  clearDestino: () => void;
+  destinos: string[];
+  toggleDestino: (destino: string) => void;
+  clearDestinos: () => void;
 }
 
 const FilterStoreContext = createContext<FilterState | null>(null);
 
 export function FilterStoreProvider({ children }: { children: ReactNode }) {
-  const [destino, setDestinoState] = useState("");
+  const [destinos, setDestinos] = useState<string[]>([]);
 
-  // Stable references: setters never change, so consumers wrapped in
-  // React.memo won't re-render when only `destino` value changes.
-  const setDestino = useCallback((d: string) => setDestinoState(d), []);
-  const clearDestino = useCallback(() => setDestinoState(""), []);
+  const toggleDestino = useCallback((destino: string) => {
+    setDestinos((current) =>
+      current.includes(destino)
+        ? current.filter((item) => item !== destino)
+        : [...current, destino],
+    );
+  }, []);
+
+  const clearDestinos = useCallback(() => setDestinos([]), []);
 
   const value = useMemo(
-    () => ({ destino, setDestino, clearDestino }),
-    [destino, setDestino, clearDestino],
+    () => ({ destinos, toggleDestino, clearDestinos }),
+    [destinos, toggleDestino, clearDestinos],
   );
 
   return (
@@ -50,6 +42,8 @@ export function FilterStoreProvider({ children }: { children: ReactNode }) {
 
 export function useFilterStore(): FilterState {
   const ctx = useContext(FilterStoreContext);
-  if (!ctx) throw new Error("useFilterStore must be used inside FilterStoreProvider");
+  if (!ctx) {
+    throw new Error("useFilterStore must be used inside FilterStoreProvider");
+  }
   return ctx;
 }

@@ -5,7 +5,12 @@ import { useFilterStore } from "../../../stores/filterStore";
 import type { MonthlyPrice } from "../../../types/prices";
 
 export function usePriceTrend(): ReturnType<typeof useFetch<MonthlyPrice[]>> {
-  const { destino } = useFilterStore();
-  const queryFn = useCallback(() => getMonthlyPrices(destino || undefined), [destino]);
-  return useFetch<MonthlyPrice[]>(queryFn, [destino], `price-trend:${destino}`);
+  const { destinos } = useFilterStore();
+  const selectionKey = destinos.join("|");
+  const queryFn = useCallback(() => getMonthlyPrices(destinos), [destinos]);
+  return useFetch<MonthlyPrice[]>(
+    queryFn,
+    [selectionKey],
+    `price-trend:${selectionKey}`,
+  );
 }

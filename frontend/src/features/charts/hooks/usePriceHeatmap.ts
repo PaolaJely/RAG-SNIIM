@@ -5,7 +5,12 @@ import { useFilterStore } from "../../../stores/filterStore";
 import type { HeatmapData } from "../../../types/prices";
 
 export function usePriceHeatmap(): ReturnType<typeof useFetch<HeatmapData>> {
-  const { destino } = useFilterStore();
-  const queryFn = useCallback(() => getPriceHeatmap(destino || undefined), [destino]);
-  return useFetch<HeatmapData>(queryFn, [destino], `price-heatmap:${destino}`);
+  const { destinos } = useFilterStore();
+  const selectionKey = destinos.join("|");
+  const queryFn = useCallback(() => getPriceHeatmap(destinos), [destinos]);
+  return useFetch<HeatmapData>(
+    queryFn,
+    [selectionKey],
+    `price-heatmap:${selectionKey}`,
+  );
 }

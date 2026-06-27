@@ -1,16 +1,16 @@
-import { fetchJson } from "./api";
+import { destinationParams, fetchJson } from "./api";
 import type { Market, MarketMinimal } from "../types/market";
 
-export function getMarkets(destino?: string): Promise<Market[]> {
+export function getMarkets(destinos?: string[]): Promise<Market[]> {
   return fetchJson<Market[]>(
     "/api/mercados",
-    destino ? { destino } : undefined,
+    destinationParams(destinos),
   );
 }
 
-export function getMarketsMinimal(destino?: string): Promise<MarketMinimal[]> {
+export function getMarketsMinimal(destinos?: string[]): Promise<MarketMinimal[]> {
   return fetchJson<MarketMinimal[]>(
     "/api/mercados",
-    destino ? { destino } : undefined,
+    destinationParams(destinos),
   );
 }

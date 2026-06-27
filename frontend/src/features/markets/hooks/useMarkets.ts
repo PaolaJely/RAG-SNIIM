@@ -5,7 +5,8 @@ import { useFilterStore } from "../../../stores/filterStore";
 import type { Market } from "../../../types/market";
 
 export function useMarkets(): ReturnType<typeof useFetch<Market[]>> {
-  const { destino } = useFilterStore();
-  const queryFn = useCallback(() => getMarkets(destino || undefined), [destino]);
-  return useFetch<Market[]>(queryFn, [destino], `markets:${destino}`);
+  const { destinos } = useFilterStore();
+  const selectionKey = destinos.join("|");
+  const queryFn = useCallback(() => getMarkets(destinos), [destinos]);
+  return useFetch<Market[]>(queryFn, [selectionKey], `markets:${selectionKey}`);
 }

@@ -29,15 +29,16 @@ export interface PriceTrendChartState {
 
 export function usePriceTrendChart(): PriceTrendChartState {
   const [granularity, setGranularity] = useState<PriceGranularity>("week");
-  const { destino } = useFilterStore();
+  const { destinos } = useFilterStore();
+  const selectionKey = destinos.join("|");
   const queryFn = useCallback(
-    () => getOhlcPrices(granularity, destino || undefined),
-    [destino, granularity],
+    () => getOhlcPrices(granularity, destinos),
+    [destinos, granularity],
   );
   const { data, loading, error } = useFetch(
     queryFn,
-    [destino, granularity],
-    `price-ohlc:${granularity}:${destino}`,
+    [selectionKey, granularity],
+    `price-ohlc:${granularity}:${selectionKey}`,
   );
 
   const shortPeriod = granularity === "week" ? 4 : 3;
