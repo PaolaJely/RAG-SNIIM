@@ -14,8 +14,11 @@ const Mercados = lazy(() =>
 const ChatIA = lazy(() =>
   import("../features/chat/components/ChatIA").then((m) => ({ default: m.ChatIA })),
 );
+const DataImport = lazy(() =>
+  import("../features/imports/components/DataImport").then((m) => ({ default: m.DataImport })),
+);
 
-export { Dashboard, Mercados, ChatIA };
+export { Dashboard, Mercados, ChatIA, DataImport };
 
 export const router = createBrowserRouter([
   {
@@ -25,6 +28,7 @@ export const router = createBrowserRouter([
       { index: true, Component: Dashboard },
       { path: "mercados", Component: Mercados },
       { path: "chat-ia", Component: ChatIA },
+      { path: "importar-datos", Component: DataImport },
     ],
   },
 ]);

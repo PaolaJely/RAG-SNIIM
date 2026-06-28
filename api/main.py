@@ -11,10 +11,25 @@ import time
 import threading
 import psycopg2
 import psycopg2.extras
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import config
+from import_parser import ImportFormatError, parse_import_file
+from import_repository import (
+    approve_import_batch,
+    create_import_batch,
+    ensure_import_schema,
+    get_column_mapping,
+    get_import_batch,
+    list_import_batches,
+    save_column_mapping,
+)
+from normalization_agent import (
+    csv_profile,
+    csv_source_key,
+    suggest_csv_mapping,
+)
 
 app = FastAPI(title="SNIIM API", version="1.0.0")
 
@@ -47,6 +62,7 @@ _cache_lock = threading.Lock()
 _cache_data: list[dict] = []
 _cache_ts: float = 0.0
 _CACHE_TTL = 10 * 60  # 10 minutos
+MAX_IMPORT_FILE_SIZE = 10 * 1024 * 1024
 
 
 def _get_pg() -> psycopg2.extensions.connection:
@@ -138,6 +154,172 @@ def _parse_date(fecha: str):
 def health():
     """Health check para Render / balanceadores."""
     return {"status": "ok"}
+
+
+def verify_import_admin(
+    x_import_token: Optional[str] = Header(None),
+) -> None:
+    """Protege las operaciones de importación cuando el token está configurado."""
+    if config.IMPORT_ADMIN_TOKEN and x_import_token != config.IMPORT_ADMIN_TOKEN:
+        raise HTTPException(
+            status_code=401,
+            detail="Token administrativo inválido.",
+        )
+
+
+@app.post("/api/imports/preview")
+async def preview_import(
+    file: UploadFile = File(...),
+    producer_name: Optional[str] = Form(None),
+    municipality: Optional[str] = Form(None),
+    currency: str = Form("MXN"),
+    package_weight_kg: Optional[float] = Form(None),
+    _admin: None = Depends(verify_import_admin),
+):
+    """Analiza y normaliza un Excel/CSV sin guardar registros en Neon."""
+    filename = file.filename or "archivo"
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {".xlsx", ".csv"}:
+        raise HTTPException(
+            status_code=415,
+            detail="Formato no permitido. Usa archivos .xlsx o .csv.",
+        )
+
+    content = await file.read(MAX_IMPORT_FILE_SIZE + 1)
+    await file.close()
+    if len(content) > MAX_IMPORT_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail="El archivo excede el límite de 10 MB.",
+        )
+    if not content:
+        raise HTTPException(status_code=400, detail="El archivo está vacío.")
+
+    try:
+        result = parse_import_file(
+            content=content,
+            filename=filename,
+            producer_name=producer_name,
+            municipality=municipality,
+            currency=currency,
+            package_weight_kg=package_weight_kg,
+        )
+        result.pop("_all_rows", None)
+        return result
+    except ImportFormatError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="No fue posible interpretar la estructura del archivo.",
+        ) from exc
+
+
+@app.post("/api/imports/analyze")
+async def analyze_import(
+    file: UploadFile = File(...),
+    producer_name: str = Form(..., min_length=1),
+    municipality: Optional[str] = Form(None),
+    currency: str = Form("MXN"),
+    package_weight_kg: Optional[float] = Form(None),
+    _admin: None = Depends(verify_import_admin),
+):
+    """Analiza el archivo y persiste el resultado en staging de Neon."""
+    filename = file.filename or "archivo"
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {".xlsx", ".csv"}:
+        raise HTTPException(status_code=415, detail="Usa archivos .xlsx o .csv.")
+    content = await file.read(MAX_IMPORT_FILE_SIZE + 1)
+    await file.close()
+    if len(content) > MAX_IMPORT_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="El archivo excede 10 MB.")
+
+    agent_used = False
+    agent_output = None
+    try:
+        try:
+            result = parse_import_file(
+                content, filename, producer_name, municipality, currency,
+                package_weight_kg,
+            )
+        except ImportFormatError:
+            if suffix != ".csv":
+                raise
+            ensure_import_schema()
+            source_key = csv_source_key(content)
+            mapping = get_column_mapping(source_key)
+            if mapping:
+                agent_output = {"cached": True, "source_key": source_key}
+            else:
+                mapping, agent_output = await suggest_csv_mapping(content)
+                headers, _ = csv_profile(content)
+                save_column_mapping(
+                    source_key,
+                    headers,
+                    mapping,
+                    agent_output.get("confidence"),
+                )
+            agent_used = True
+            result = parse_import_file(
+                content, filename, producer_name, municipality, currency,
+                package_weight_kg, column_mapping=mapping,
+            )
+
+        ensure_import_schema()
+        batch_id = create_import_batch(
+            content, result, agent_used=agent_used, agent_output=agent_output
+        )
+        result.pop("_all_rows", None)
+        result["batch_id"] = batch_id
+        result["batch_status"] = (
+            "needs_review" if result["summary"]["error_rows"] else "analyzed"
+        )
+        result["agent_used"] = agent_used
+        return result
+    except ImportFormatError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+class ApproveImportRequest(BaseModel):
+    exclude_errors: bool = False
+
+
+@app.get("/api/imports")
+def get_imports(
+    limit: int = Query(20, ge=1, le=100),
+    _admin: None = Depends(verify_import_admin),
+):
+    ensure_import_schema()
+    return list_import_batches(limit)
+
+
+@app.get("/api/imports/{batch_id}")
+def get_import(
+    batch_id: int,
+    _admin: None = Depends(verify_import_admin),
+):
+    ensure_import_schema()
+    batch = get_import_batch(batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Lote no encontrado.")
+    return batch
+
+
+@app.post("/api/imports/{batch_id}/approve")
+def approve_import(
+    batch_id: int,
+    body: ApproveImportRequest,
+    _admin: None = Depends(verify_import_admin),
+):
+    ensure_import_schema()
+    try:
+        return approve_import_batch(batch_id, body.exclude_errors)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.get("/api/kpis")

@@ -1,4 +1,4 @@
-import { BarChart3, Map, MessageSquare, Settings, Wheat, ChevronLeft, ChevronRight } from "lucide-react";
+import { BarChart3, FileUp, Map, MessageSquare, Settings, Wheat, ChevronLeft, ChevronRight } from "lucide-react";
 import { NavItem } from "./NavItem";
 import type { NavItemConfig } from "./NavItem";
 
@@ -10,6 +10,7 @@ const NAV_ITEMS: NavItemConfig[] = [
   { to: "/",             end: true,  icon: BarChart3,    label: "Dashboard",     hint: "D" },
   { to: "/mercados",     end: false, icon: Map,          label: "Mercados",      hint: "M" },
   { to: "/chat-ia",      end: false, icon: MessageSquare,label: "Chat IA",       hint: "C" },
+  { to: "/importar-datos", end: false, icon: FileUp,      label: "Importar datos",hint: "I" },
   { to: "/configuracion",end: false, icon: Settings,     label: "Configuración", hint: "⚙", disabled: true },
 ];
 
