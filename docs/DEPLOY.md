@@ -107,7 +107,6 @@ POSTGRES_DB=neondb
 POSTGRES_USER=neondb_owner
 POSTGRES_PASSWORD=tu_password
 POSTGRES_SSLMODE=require
-IMPORT_ADMIN_TOKEN=secreto-largo-para-operadores
 ```
 
 4. Aplica el esquema (desde la raíz del repo):
@@ -321,7 +320,6 @@ POSTGRES_DB=neondb
 POSTGRES_USER=neondb_owner
 POSTGRES_PASSWORD=***
 POSTGRES_SSLMODE=require
-IMPORT_ADMIN_TOKEN=secreto-largo-para-operadores
 
 # ── OpenAI ────────────────────────────────────────────
 OPENAI_API_KEY=sk-...

@@ -11,7 +11,7 @@ import time
 import threading
 import psycopg2
 import psycopg2.extras
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import config
@@ -156,17 +156,6 @@ def health():
     return {"status": "ok"}
 
 
-def verify_import_admin(
-    x_import_token: Optional[str] = Header(None),
-) -> None:
-    """Protege las operaciones de importación cuando el token está configurado."""
-    if config.IMPORT_ADMIN_TOKEN and x_import_token != config.IMPORT_ADMIN_TOKEN:
-        raise HTTPException(
-            status_code=401,
-            detail="Token administrativo inválido.",
-        )
-
-
 @app.post("/api/imports/preview")
 async def preview_import(
     file: UploadFile = File(...),
@@ -174,7 +163,6 @@ async def preview_import(
     municipality: Optional[str] = Form(None),
     currency: str = Form("MXN"),
     package_weight_kg: Optional[float] = Form(None),
-    _admin: None = Depends(verify_import_admin),
 ):
     """Analiza y normaliza un Excel/CSV sin guardar registros en Neon."""
     filename = file.filename or "archivo"
@@ -222,7 +210,6 @@ async def analyze_import(
     municipality: Optional[str] = Form(None),
     currency: str = Form("MXN"),
     package_weight_kg: Optional[float] = Form(None),
-    _admin: None = Depends(verify_import_admin),
 ):
     """Analiza el archivo y persiste el resultado en staging de Neon."""
     filename = file.filename or "archivo"
@@ -289,7 +276,6 @@ class ApproveImportRequest(BaseModel):
 @app.get("/api/imports")
 def get_imports(
     limit: int = Query(20, ge=1, le=100),
-    _admin: None = Depends(verify_import_admin),
 ):
     ensure_import_schema()
     return list_import_batches(limit)
@@ -298,7 +284,6 @@ def get_imports(
 @app.get("/api/imports/{batch_id}")
 def get_import(
     batch_id: int,
-    _admin: None = Depends(verify_import_admin),
 ):
     ensure_import_schema()
     batch = get_import_batch(batch_id)
@@ -311,7 +296,6 @@ def get_import(
 def approve_import(
     batch_id: int,
     body: ApproveImportRequest,
-    _admin: None = Depends(verify_import_admin),
 ):
     ensure_import_schema()
     try:

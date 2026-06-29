@@ -22,8 +22,6 @@ POSTGRES_DB       = os.getenv("POSTGRES_DB", "sniim")
 POSTGRES_USER     = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
 POSTGRES_SSLMODE  = os.getenv("POSTGRES_SSLMODE", "prefer")
-IMPORT_ADMIN_TOKEN = os.getenv("IMPORT_ADMIN_TOKEN", "")
-
 POSTGRES_DSN = (
     f"host={POSTGRES_HOST} port={POSTGRES_PORT} "
     f"dbname={POSTGRES_DB} user={POSTGRES_USER} "

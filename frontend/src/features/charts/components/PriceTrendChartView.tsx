@@ -311,7 +311,7 @@ export function PriceTrendChartView() {
             Comportamiento de precios
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Velas OHLC y actividad calculadas con observaciones de Neon
+            Velas OHLC y media móvil calculadas
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">

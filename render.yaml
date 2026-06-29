@@ -31,8 +31,6 @@ services:
         sync: false
       - key: POSTGRES_SSLMODE
         value: require
-      - key: IMPORT_ADMIN_TOKEN
-        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_LLM_MODEL

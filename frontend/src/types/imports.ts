@@ -65,7 +65,6 @@ export interface ImportFormMetadata {
   municipality: string;
   currency: string;
   packageWeightKg: string;
-  adminToken: string;
 }
 
 export interface ImportApproval {

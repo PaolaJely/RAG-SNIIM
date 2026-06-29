@@ -35,7 +35,6 @@ const initialMetadata: ImportFormMetadata = {
   municipality: "",
   currency: "MXN",
   packageWeightKg: "",
-  adminToken: "",
 };
 
 function StatusBadge({ status }: { status: ImportRowStatus }) {
@@ -125,11 +124,7 @@ export function DataImport() {
     setApproving(true);
     setError(null);
     try {
-      setApproval(await approveImport(
-        preview.batch_id,
-        excludeErrors,
-        metadata.adminToken,
-      ));
+      setApproval(await approveImport(preview.batch_id, excludeErrors));
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -269,19 +264,6 @@ export function DataImport() {
                     setMetadata({ ...metadata, packageWeightKg: event.target.value })
                   }
                   placeholder="Ej. 18"
-                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-brand/50"
-                />
-              </label>
-              <label className="text-xs text-muted-foreground sm:col-span-2">
-                Token administrativo
-                <input
-                  type="password"
-                  autoComplete="off"
-                  value={metadata.adminToken}
-                  onChange={(event) =>
-                    setMetadata({ ...metadata, adminToken: event.target.value })
-                  }
-                  placeholder="Requerido en producción"
                   className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-brand/50"
                 />
               </label>

@@ -24,9 +24,6 @@ export async function analyzeImport(
 
   const response = await fetch(`${API_BASE}/api/imports/analyze`, {
     method: "POST",
-    headers: metadata.adminToken
-      ? { "X-Import-Token": metadata.adminToken }
-      : undefined,
     body: form,
   });
   if (!response.ok) {
@@ -39,13 +36,11 @@ export async function analyzeImport(
 export async function approveImport(
   batchId: number,
   excludeErrors: boolean,
-  adminToken: string,
 ): Promise<ImportApproval> {
   const response = await fetch(`${API_BASE}/api/imports/${batchId}/approve`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(adminToken ? { "X-Import-Token": adminToken } : {}),
     },
     body: JSON.stringify({ exclude_errors: excludeErrors }),
   });
