@@ -1,4 +1,5 @@
-import { destinationParams, fetchJson } from "./api";
+import { dashboardParams, fetchJson } from "./api";
+import type { DataSource } from "../stores/filterStore";
 import type {
   CandlestickPrice,
   HeatmapData,
@@ -6,17 +7,23 @@ import type {
   PriceGranularity,
 } from "../types/prices";
 
-export function getMonthlyPrices(destinos?: string[]): Promise<MonthlyPrice[]> {
+export function getMonthlyPrices(
+  destinos?: string[],
+  source: DataSource = "sniim",
+): Promise<MonthlyPrice[]> {
   return fetchJson<MonthlyPrice[]>(
     "/api/precios/mensual",
-    destinationParams(destinos),
+    dashboardParams(destinos, source),
   );
 }
 
-export function getPriceHeatmap(destinos?: string[]): Promise<HeatmapData> {
+export function getPriceHeatmap(
+  destinos?: string[],
+  source: DataSource = "sniim",
+): Promise<HeatmapData> {
   return fetchJson<HeatmapData>(
     "/api/precios/heatmap",
-    destinationParams(destinos),
+    dashboardParams(destinos, source),
   );
 }
 
@@ -28,9 +35,10 @@ type OhlcApiRow = Omit<
 export function getOhlcPrices(
   granularity: PriceGranularity,
   destinos?: string[],
+  source: DataSource = "sniim",
 ): Promise<OhlcApiRow[]> {
   return fetchJson<OhlcApiRow[]>("/api/precios/ohlc", {
     granularidad: granularity,
-    ...(destinationParams(destinos) ?? {}),
+    ...dashboardParams(destinos, source),
   });
 }

@@ -1,6 +1,7 @@
 import { Menu } from "lucide-react";
 import { memo } from "react";
 import { DestinationFilter } from "./DestinationFilter";
+import { SourceFilter } from "./SourceFilter";
 import { ThemeToggle } from "./ThemeToggle";
 
 interface Props {
@@ -29,6 +30,7 @@ export const AppHeader = memo(function AppHeader({ onMenuClick }: Props) {
       <div className="flex-1" aria-hidden="true" />
 
       <div className="flex items-center gap-1.5">
+        <SourceFilter />
         <DestinationFilter />
         <div className="w-px h-5 bg-border" aria-hidden="true" />
         <ThemeToggle />

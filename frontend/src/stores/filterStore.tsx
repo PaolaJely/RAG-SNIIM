@@ -7,8 +7,12 @@ import {
   type ReactNode,
 } from "react";
 
+export type DataSource = "sniim" | "local" | "all";
+
 interface FilterState {
   destinos: string[];
+  source: DataSource;
+  setSource: (source: DataSource) => void;
   toggleDestino: (destino: string) => void;
   clearDestinos: () => void;
 }
@@ -17,6 +21,12 @@ const FilterStoreContext = createContext<FilterState | null>(null);
 
 export function FilterStoreProvider({ children }: { children: ReactNode }) {
   const [destinos, setDestinos] = useState<string[]>([]);
+  const [source, setSourceState] = useState<DataSource>("sniim");
+
+  const setSource = useCallback((nextSource: DataSource) => {
+    setSourceState(nextSource);
+    setDestinos([]);
+  }, []);
 
   const toggleDestino = useCallback((destino: string) => {
     setDestinos((current) =>
@@ -29,8 +39,8 @@ export function FilterStoreProvider({ children }: { children: ReactNode }) {
   const clearDestinos = useCallback(() => setDestinos([]), []);
 
   const value = useMemo(
-    () => ({ destinos, toggleDestino, clearDestinos }),
-    [destinos, toggleDestino, clearDestinos],
+    () => ({ destinos, source, setSource, toggleDestino, clearDestinos }),
+    [destinos, source, setSource, toggleDestino, clearDestinos],
   );
 
   return (

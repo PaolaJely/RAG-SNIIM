@@ -29,11 +29,11 @@ export interface PriceTrendChartState {
 
 export function usePriceTrendChart(): PriceTrendChartState {
   const [granularity, setGranularity] = useState<PriceGranularity>("week");
-  const { destinos } = useFilterStore();
-  const selectionKey = destinos.join("|");
+  const { destinos, source } = useFilterStore();
+  const selectionKey = `${source}:${destinos.join("|")}`;
   const queryFn = useCallback(
-    () => getOhlcPrices(granularity, destinos),
-    [destinos, granularity],
+    () => getOhlcPrices(granularity, destinos, source),
+    [destinos, granularity, source],
   );
   const { data, loading, error } = useFetch(
     queryFn,

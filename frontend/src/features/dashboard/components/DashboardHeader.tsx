@@ -3,7 +3,12 @@ import { getDayGreeting, formatLongDate } from "../../../lib/format";
 import { useFilterStore } from "../../../stores/filterStore.tsx";
 
 export function DashboardHeader() {
-  const { destinos } = useFilterStore();
+  const { destinos, source } = useFilterStore();
+  const sourceLabel = {
+    sniim: "SNIIM",
+    local: "Productores locales",
+    all: "SNIIM + productores locales",
+  }[source];
 
   return (
     <motion.div
@@ -31,7 +36,9 @@ export function DashboardHeader() {
         </p>
       </div>
       <p className="text-xs text-muted-foreground shrink-0">
-        Precios del plátano Tabasco · 2025
+        {source === "local" ? "Datos importados" : "Precios del plátano Tabasco"}
+        {" · "}
+        {sourceLabel}
       </p>
     </motion.div>
   );

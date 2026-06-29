@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useMarkets } from "../../markets/hooks/useMarkets";
 import { formatPriceShort } from "../../../lib/format";
+import { useFilterStore } from "../../../stores/filterStore";
 
 const RANK_COLORS = [
   { bar: "#1B4F72", textOnBar: "text-white" },
@@ -31,6 +32,8 @@ function RankingSkeleton() {
 
 export function TopMarketsRanking() {
   const { data: markets, loading } = useMarkets();
+  const { source } = useFilterStore();
+  const unit = source === "local" ? "unidad" : "kg";
 
   const { top, maxPrice } = useMemo(() => {
     const slice = markets?.slice(0, 8) ?? [];
@@ -48,7 +51,7 @@ export function TopMarketsRanking() {
           Mercados con Mayor Precio
         </h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Precio frecuente promedio · MXN/kg
+          Precio frecuente promedio · MXN/{unit}
         </p>
       </div>
 
@@ -80,7 +83,7 @@ export function TopMarketsRanking() {
                   <div
                     className="h-full flex items-center justify-end pr-2.5 rounded-md transition-all duration-500 ease-out"
                     style={{ width: `${Math.max(widthPct, 12)}%`, backgroundColor: colors.bar }}
-                    aria-label={`${market.nombre}: ${formatPriceShort(market.precio_promedio)}/kg`}
+                    aria-label={`${market.nombre}: ${formatPriceShort(market.precio_promedio)}/${unit}`}
                   >
                     <span className={`text-[10px] font-semibold ${colors.textOnBar} whitespace-nowrap`}>
                       {formatPriceShort(market.precio_promedio)}

@@ -1,16 +1,23 @@
-import { destinationParams, fetchJson } from "./api";
+import { dashboardParams, fetchJson } from "./api";
+import type { DataSource } from "../stores/filterStore";
 import type { Market, MarketMinimal } from "../types/market";
 
-export function getMarkets(destinos?: string[]): Promise<Market[]> {
+export function getMarkets(
+  destinos?: string[],
+  source: DataSource = "sniim",
+): Promise<Market[]> {
   return fetchJson<Market[]>(
     "/api/mercados",
-    destinationParams(destinos),
+    dashboardParams(destinos, source),
   );
 }
 
-export function getMarketsMinimal(destinos?: string[]): Promise<MarketMinimal[]> {
+export function getMarketsMinimal(
+  destinos?: string[],
+  source: DataSource = "sniim",
+): Promise<MarketMinimal[]> {
   return fetchJson<MarketMinimal[]>(
     "/api/mercados",
-    destinationParams(destinos),
+    dashboardParams(destinos, source),
   );
 }

@@ -7,9 +7,12 @@ import { PriceHeatmap } from "../../charts/components/PriceHeatmap";
 import { TopMarketsRanking } from "../../charts/components/TopMarketsRanking";
 import { useKpis } from "../hooks/useKpis";
 import { formatPrice, formatPct } from "../../../lib/format";
+import { useFilterStore } from "../../../stores/filterStore";
 
 export function Dashboard() {
   const { data: kpis, loading, error } = useKpis();
+  const { source } = useFilterStore();
+  const priceUnit = source === "local" ? "MXN/unidad" : "MXN/kg";
 
   return (
     <div className="p-5 lg:p-7 xl:p-8 space-y-6 max-w-[1600px] mx-auto">
@@ -31,7 +34,7 @@ export function Dashboard() {
               <KpiCard
                 label="Precio promedio"
                 value={formatPrice(kpis.precio_promedio)}
-                unit="MXN/kg"
+                unit={priceUnit}
                 trend={kpis.cambio_pct !== null ? (kpis.cambio_pct >= 0 ? "up" : "down") : null}
                 trendLabel={kpis.cambio_pct !== null ? `${formatPct(kpis.cambio_pct)} vs mes ant.` : undefined}
                 icon={<DollarSign className="w-3.5 h-3.5 text-brand" />}
@@ -41,7 +44,7 @@ export function Dashboard() {
               <KpiCard
                 label="Precio máximo"
                 value={formatPrice(kpis.precio_max)}
-                unit="MXN/kg"
+                unit={priceUnit}
                 sublabel={`${kpis.precio_max_mercado} · ${kpis.precio_max_fecha}`}
                 icon={<ArrowUp className="w-3.5 h-3.5 text-brand-danger" />}
                 iconBg="bg-brand-danger-muted"
@@ -50,7 +53,7 @@ export function Dashboard() {
               <KpiCard
                 label="Precio mínimo"
                 value={formatPrice(kpis.precio_min)}
-                unit="MXN/kg"
+                unit={priceUnit}
                 sublabel={`${kpis.precio_min_mercado} · ${kpis.precio_min_fecha}`}
                 icon={<ArrowDown className="w-3.5 h-3.5 text-brand-success" />}
                 iconBg="bg-brand-success-muted"

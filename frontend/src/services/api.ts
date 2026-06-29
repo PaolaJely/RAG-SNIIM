@@ -1,3 +1,5 @@
+import type { DataSource } from "../stores/filterStore";
+
 /**
  * Base HTTP client.
  *
@@ -13,10 +15,14 @@
  */
 export const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
-export function destinationParams(
+export function dashboardParams(
   destinos?: string[],
-): Record<string, string> | undefined {
-  return destinos?.length ? { destino: destinos.join("|") } : undefined;
+  source: DataSource = "sniim",
+): Record<string, string> {
+  return {
+    source,
+    ...(destinos?.length ? { destino: destinos.join("|") } : {}),
+  };
 }
 
 class ApiError extends Error {

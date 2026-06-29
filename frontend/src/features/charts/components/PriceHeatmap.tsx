@@ -1,5 +1,6 @@
 import { Info } from "lucide-react";
 import { usePriceHeatmap } from "../hooks/usePriceHeatmap";
+import { useFilterStore } from "../../../stores/filterStore";
 
 const COLOR_STEPS = [
   "#FEF9E7", "#FDF2D0", "#FDEBD0",
@@ -22,6 +23,8 @@ function getTextColor(price: number | null, min: number, max: number): string {
 
 export function PriceHeatmap() {
   const { data, loading } = usePriceHeatmap();
+  const { source } = useFilterStore();
+  const unit = source === "local" ? "unidad" : "kg";
 
   const allPrices = data
     ? Object.values(data.data).flatMap((row) =>
@@ -43,7 +46,7 @@ export function PriceHeatmap() {
             role="tooltip"
             className="absolute left-0 top-5 w-52 bg-popover border border-border text-foreground text-xs rounded-lg p-2.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg leading-relaxed"
           >
-            Precio frecuente promedio por ciudad y mes (MXN/kg)
+            Precio frecuente promedio por ciudad y mes (MXN/{unit})
           </div>
         </div>
       </div>
@@ -94,8 +97,8 @@ export function PriceHeatmap() {
                               backgroundColor: price !== null ? getColor(price, min, max) : undefined,
                               color: price !== null ? getTextColor(price, min, max) : undefined,
                             }}
-                            title={price ? `$${price}/kg` : "Sin datos"}
-                            aria-label={price !== null ? `${dest}, ${mes}: $${price}/kg` : `${dest}, ${mes}: Sin datos`}
+                            title={price ? `$${price}/${unit}` : "Sin datos"}
+                            aria-label={price !== null ? `${dest}, ${mes}: $${price}/${unit}` : `${dest}, ${mes}: Sin datos`}
                           >
                             {price !== null ? `$${price}` : <span className="text-muted-foreground/30">—</span>}
                           </div>

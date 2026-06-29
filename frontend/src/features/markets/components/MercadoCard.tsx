@@ -3,6 +3,7 @@ import { memo } from "react";
 import { motion } from "motion/react";
 import { formatPrice } from "../../../lib/format";
 import type { Market } from "../../../types/market";
+import { useFilterStore } from "../../../stores/filterStore";
 
 interface Props {
   market: Market;
@@ -21,6 +22,7 @@ function getPriceBarColor(relativePos: number): string {
 // the individual card's data is the same (e.g. typing narrows the list
 // but cards already rendered don't change).
 export const MercadoCard = memo(function MercadoCard({ market, index, globalMin, globalMax }: Props) {
+  const { source } = useFilterStore();
   const range = globalMax - globalMin || 1;
   const relativePos = (market.precio_promedio - globalMin) / range;
   const barColor = getPriceBarColor(relativePos);
@@ -44,7 +46,9 @@ export const MercadoCard = memo(function MercadoCard({ market, index, globalMin,
       <div className="mb-4">
         <p className="text-2xl font-semibold text-foreground tracking-tight tabular-nums">
           {formatPrice(market.precio_promedio)}
-          <span className="text-xs font-normal text-muted-foreground ml-1">MXN/kg</span>
+          <span className="text-xs font-normal text-muted-foreground ml-1">
+            {source === "local" ? "MXN/unidad" : "MXN/kg"}
+          </span>
         </p>
         <div
           className="mt-2 w-full bg-muted rounded-full h-1.5"

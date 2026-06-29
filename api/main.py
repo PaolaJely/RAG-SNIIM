@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "rag"))
 
 from collections import defaultdict
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 import time
 import threading
 import psycopg2
@@ -63,6 +63,7 @@ _cache_data: list[dict] = []
 _cache_ts: float = 0.0
 _CACHE_TTL = 10 * 60  # 10 minutos
 MAX_IMPORT_FILE_SIZE = 10 * 1024 * 1024
+DataSource = Literal["sniim", "local", "all"]
 
 
 def _get_pg() -> psycopg2.extensions.connection:
@@ -99,9 +100,74 @@ def _fetch_all_from_postgres(producto_id: str = "732") -> list[dict]:
     return normalized
 
 
+def _fetch_local_producer_prices(
+    dashboard_compatible_only: bool = False,
+) -> list[dict]:
+    """Normaliza precios locales compatibles con el producto del dashboard.
+
+    Los datos originales permanecen en ``producer_price``. Para evitar mezclar
+    monedas o unidades incompatibles, esta vista solo admite MXN y registros
+    que puedan expresarse inequívocamente como precio por kilogramo.
+    """
+    ensure_import_schema()
+    conn = _get_pg()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    product_filter = (
+        "AND LOWER(pp.product_name) IN ('plátano tabasco', 'platano tabasco')"
+        if dashboard_compatible_only
+        else ""
+    )
+    cur.execute(
+        f"""
+        SELECT pp.record_date, pp.product_name, pp.presentation,
+               pp.package_weight_kg, pp.price, pp.currency,
+               lp.name AS producer_name, lp.municipality
+        FROM producer_price pp
+        JOIN local_producer lp ON lp.id = pp.producer_id
+        WHERE pp.currency = 'MXN'
+          {product_filter}
+        ORDER BY pp.record_date
+        """
+    )
+    rows = [dict(row) for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    normalized = []
+    for row in rows:
+        weight = row.get("package_weight_kg")
+        presentation = (row.get("presentation") or "").strip().lower()
+        if weight and float(weight) > 0:
+            display_price = float(row["price"]) / float(weight)
+        elif presentation in {"kg", "kilogramo"}:
+            display_price = float(row["price"])
+        elif not dashboard_compatible_only:
+            # La fuente local conserva el precio en su presentación original.
+            display_price = float(row["price"])
+        else:
+            continue
+
+        destination = row["producer_name"]
+        if row.get("municipality"):
+            destination = f"{destination}: {row['municipality']}"
+        record_date = row["record_date"]
+        normalized.append({
+            "fecha": record_date.strftime("%d/%m/%Y"),
+            "origen": "Productor local",
+            "destino": destination,
+            "presentacion": "Kilogramo",
+            "precio_min": round(display_price, 2),
+            "precio_max": round(display_price, 2),
+            "precio_frec": round(display_price, 2),
+            "source": "local",
+        })
+    return normalized
+
+
 def _all_records(
     destino: Optional[str] = None,
     producto_id: str = "732",
+    source: DataSource = "sniim",
 ) -> list[dict]:
     """Devuelve todos los registros normalizados con caché en memoria (TTL 10 min).
 
@@ -109,11 +175,15 @@ def _all_records(
     """
     global _cache_data, _cache_ts
 
-    with _cache_lock:
-        if not _cache_data or (time.time() - _cache_ts) > _CACHE_TTL:
-            _cache_data = _fetch_all_from_postgres(producto_id)
-            _cache_ts = time.time()
-        rows = _cache_data
+    rows: list[dict] = []
+    if source in {"sniim", "all"}:
+        with _cache_lock:
+            if not _cache_data or (time.time() - _cache_ts) > _CACHE_TTL:
+                _cache_data = _fetch_all_from_postgres(producto_id)
+                _cache_ts = time.time()
+            rows.extend({**row, "source": "sniim"} for row in _cache_data)
+    if source in {"local", "all"}:
+        rows.extend(_fetch_local_producer_prices(source == "all"))
 
     if destino:
         destinos = [
@@ -307,9 +377,12 @@ def approve_import(
 
 
 @app.get("/api/kpis")
-def get_kpis(destino: Optional[str] = Query(None)):
+def get_kpis(
+    destino: Optional[str] = Query(None),
+    source: DataSource = Query("sniim"),
+):
     """KPI cards del Dashboard."""
-    rows = _all_records(destino)
+    rows = _all_records(destino, source=source)
     if not rows:
         raise HTTPException(status_code=404, detail="Sin datos")
 
@@ -354,9 +427,12 @@ def get_kpis(destino: Optional[str] = Query(None)):
 
 
 @app.get("/api/precios/mensual")
-def get_precios_mensual(destino: Optional[str] = Query(None)):
+def get_precios_mensual(
+    destino: Optional[str] = Query(None),
+    source: DataSource = Query("sniim"),
+):
     """Serie de tiempo mensual para PriceTrendChart."""
-    rows = _all_records(destino)
+    rows = _all_records(destino, source=source)
 
     por_mes: dict[str, dict[str, list]] = {
         m: {"frec": [], "min": [], "max": []} for m in MESES_ORDER
@@ -392,6 +468,7 @@ def get_precios_mensual(destino: Optional[str] = Query(None)):
 def get_precios_ohlc(
     destino: Optional[str] = Query(None),
     granularidad: str = Query("week", pattern="^(week|month)$"),
+    source: DataSource = Query("sniim"),
 ):
     """Velas OHLC derivadas exclusivamente de observaciones almacenadas en Neon.
 
@@ -400,7 +477,7 @@ def get_precios_ohlc(
     última fecha disponible del periodo. Los extremos provienen directamente
     de precio_min y precio_max. `observaciones` sustituye al volumen bursátil.
     """
-    rows = _all_records(destino)
+    rows = _all_records(destino, source=source)
     periods: dict[tuple, dict] = {}
 
     for row in rows:
@@ -468,9 +545,10 @@ def get_precios_ohlc(
 def get_precios_heatmap(
     destino: Optional[str] = Query(None),
     limit: int = Query(default=0, ge=0, description="Máx. destinos a mostrar (0 = todos)"),
+    source: DataSource = Query("sniim"),
 ):
     """Matriz destino × mes para PriceHeatmap."""
-    rows = _all_records(destino)
+    rows = _all_records(destino, source=source)
 
     # Contar registros por destino (nombre corto) y acumular precios
     conteo: dict[str, int] = defaultdict(int)
@@ -499,9 +577,12 @@ def get_precios_heatmap(
 
 
 @app.get("/api/mercados")
-def get_mercados(destino: Optional[str] = Query(None)):
+def get_mercados(
+    destino: Optional[str] = Query(None),
+    source: DataSource = Query("sniim"),
+):
     """Lista de mercados con precio promedio, mín y máx para Mercados y Ranking."""
-    rows = _all_records(destino)
+    rows = _all_records(destino, source=source)
 
     acum: dict[str, dict[str, list]] = defaultdict(lambda: {"frec": [], "min": [], "max": []})
 

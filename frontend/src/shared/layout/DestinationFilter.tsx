@@ -6,11 +6,15 @@ import { getMarketsMinimal } from "../../services/marketService";
 import { useFilterStore } from "../../stores/filterStore";
 
 export function DestinationFilter() {
-  const { destinos, toggleDestino, clearDestinos } = useFilterStore();
+  const { destinos, source, toggleDestino, clearDestinos } = useFilterStore();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
-  const { data: markets } = useFetch(getMarketsMinimal, [], "markets:minimal");
+  const { data: markets } = useFetch(
+    () => getMarketsMinimal(undefined, source),
+    [source],
+    `markets:minimal:${source}`,
+  );
 
   const names = useMemo(
     () => markets?.map((market) => market.nombre) ?? [],
@@ -50,7 +54,7 @@ export function DestinationFilter() {
         aria-expanded={open}
         aria-label="Seleccionar mercados para comparar"
         className={[
-          "flex h-8 max-w-[220px] items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-all duration-150",
+          "flex h-8 max-w-[130px] items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-all duration-150 sm:max-w-[220px]",
           "bg-surface-raised text-foreground/75 hover:text-foreground",
           open
             ? "border-brand/40 text-foreground ring-1 ring-brand/15"
