@@ -168,13 +168,19 @@ def _where_year(year: str | None) -> tuple[str, list[Any]]:
 
 
 def _like_pattern(term: str) -> str:
-    return f"%{term}%"
+    escaped = (
+        term
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
+    return f"%{escaped}%"
 
 
 def _where_destino_terms(terms: list[str]) -> tuple[str, list[Any]]:
     if not terms:
         return "", []
-    clauses = ["destino ILIKE %s" for _ in terms]
+    clauses = ["destino ILIKE %s ESCAPE '\\'" for _ in terms]
     return f"AND ({' OR '.join(clauses)})", [_like_pattern(term) for term in terms]
 
 

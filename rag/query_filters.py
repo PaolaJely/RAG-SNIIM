@@ -63,6 +63,8 @@ class QueryFilters:
     destino_terms: list[str] = field(default_factory=list)
     origen_terms: list[str] = field(default_factory=list)
     fecha_text: str | None = None
+    anio: str | None = None
+    mes: str | None = None
     presentacion_text: str | None = None
     temporal: bool = False
     comparative: bool = False
@@ -76,11 +78,11 @@ def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", without_accents).strip()
 
 
-def _extract_date_filter(question: str) -> tuple[str | None, bool]:
+def _extract_date_filter(question: str) -> tuple[str | None, str | None, str | None, bool]:
     normalized = normalize_text(question)
     exact_date = re.search(r"\b(\d{2}/\d{2}/\d{4})\b", question)
     if exact_date:
-        return exact_date.group(1), True
+        return exact_date.group(1), None, None, True
 
     year_match = re.search(r"\b(20\d{2}|19\d{2})\b", normalized)
     year = year_match.group(1) if year_match else None
@@ -96,13 +98,11 @@ def _extract_date_filter(question: str) -> tuple[str | None, bool]:
         if 1 <= month_value <= 12:
             month = f"{month_value:02d}"
 
-    if year and month:
-        return f"/{month}/{year}", True
     if year:
-        return year, True
+        return None, year, month, True
     if month:
-        return f"/{month}/", True
-    return None, False
+        return None, None, month, True
+    return None, None, None, False
 
 
 def _extract_presentation_filter(question: str) -> str | None:
@@ -142,9 +142,13 @@ def build_query_filters(question: str, producto_id: str | None = None) -> QueryF
     if producto_id:
         must.append(FieldCondition(key="producto_id", match=MatchValue(value=producto_id)))
 
-    fecha_text, temporal = _extract_date_filter(question)
+    fecha_text, anio, mes, temporal = _extract_date_filter(question)
     if fecha_text:
         must.append(FieldCondition(key="fecha", match=MatchText(text=fecha_text)))
+    if anio:
+        must.append(FieldCondition(key="anio", match=MatchValue(value=anio)))
+    if mes:
+        must.append(FieldCondition(key="mes", match=MatchValue(value=mes)))
 
     presentacion_text = _extract_presentation_filter(question)
     if presentacion_text:
@@ -172,6 +176,8 @@ def build_query_filters(question: str, producto_id: str | None = None) -> QueryF
         destino_terms=destino_terms,
         origen_terms=origen_terms,
         fecha_text=fecha_text,
+        anio=anio,
+        mes=mes,
         presentacion_text=presentacion_text,
         temporal=temporal,
         comparative=comparative,

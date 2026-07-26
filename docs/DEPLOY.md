@@ -101,6 +101,10 @@ Archivos relevantes:
 3. En `.env`:
 
 ```env
+# Opción recomendada si Neon te da una connection string completa:
+POSTGRES_URL=postgresql://USER:PASSWORD@HOST/neondb?sslmode=require
+
+# Opción alternativa con variables separadas:
 POSTGRES_HOST=ep-xxxx.region.aws.neon.tech
 POSTGRES_PORT=5432
 POSTGRES_DB=neondb
@@ -184,6 +188,7 @@ Variables de entorno: mismas que en la tabla siguiente.
 | `QDRANT_URL` | `https://xxx.cloud.qdrant.io:6333` |
 | `QDRANT_API_KEY` | `eyJ...` |
 | `QDRANT_COLLECTION` | `sniim` |
+| `POSTGRES_URL` | `postgresql://USER:PASSWORD@HOST/neondb?sslmode=require` |
 | `POSTGRES_HOST` | `ep-xxx.neon.tech` |
 | `POSTGRES_PORT` | `5432` |
 | `POSTGRES_DB` | `neondb` |
@@ -201,6 +206,21 @@ Variables de entorno: mismas que en la tabla siguiente.
 ```bash
 curl https://rag-sniim-api.onrender.com/health
 curl https://rag-sniim-api.onrender.com/api/kpis
+
+# Ruta analítica: debe usar Neon/Postgres y devolver intent=analitica_sql
+curl -X POST https://rag-sniim-api.onrender.com/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"pregunta":"Cual fue el precio promedio en 2025?"}'
+
+# Ruta vectorial: debe usar Qdrant Cloud y devolver documentos con similarity
+curl -X POST https://rag-sniim-api.onrender.com/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"pregunta":"Que informacion hay sobre Villahermosa?"}'
+
+# Ruta híbrida: debe usar Neon/Postgres para métricas y LLM para explicación
+curl -X POST https://rag-sniim-api.onrender.com/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"pregunta":"Compara Monterrey y CDMX y dime cual tuvo mejor comportamiento."}'
 ```
 
 > El tier free de Render **apaga** el servicio tras 15 min sin tráfico. La primera petición puede tardar ~1 minuto (cold start).
@@ -237,7 +257,9 @@ curl https://rag-sniim-api.onrender.com/api/kpis
 | Dashboard carga | Abre la URL de Cloudflare Pages |
 | KPIs | Deben mostrar precios (Neon con datos) |
 | Gráficas | `/api/precios/mensual` y heatmap responden 200 |
-| Chat RAG | Pregunta en el chat; debe usar Qdrant Cloud + OpenAI |
+| Chat analítico | “Cual fue el precio promedio en 2025?” devuelve `intent.intent=analitica_sql` y una fuente `postgres` |
+| Chat RAG | “Que informacion hay sobre Villahermosa?” devuelve `intent.intent=vectorial_rag` y documentos con `similarity` |
+| Chat híbrido | “Compara Monterrey y CDMX...” devuelve `intent.intent=hibrida` y una fuente `hybrid_sql_result` |
 | Qdrant | Panel Cloud → colección `sniim` con vectores |
 
 ---
@@ -343,6 +365,11 @@ QDRANT_API_KEY=tu-api-key
 QDRANT_COLLECTION=sniim
 
 # ── Neon (Postgres) ───────────────────────────────────
+# Usar una de estas dos opciones:
+POSTGRES_URL=postgresql://USER:PASSWORD@HOST/neondb?sslmode=require
+# DATABASE_URL=postgresql://USER:PASSWORD@HOST/neondb?sslmode=require
+
+# O variables separadas:
 POSTGRES_HOST=ep-xxx.neon.tech
 POSTGRES_PORT=5432
 POSTGRES_DB=neondb

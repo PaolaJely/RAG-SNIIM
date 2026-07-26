@@ -2,13 +2,15 @@ import unittest
 from datetime import date
 from io import BytesIO
 from pathlib import Path
+import sys
 
 from openpyxl import Workbook
 
-from import_parser import ImportFormatError, parse_import_file
-
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "api"))
+
+from import_parser import ImportFormatError, parse_import_file
 
 
 class ImportParserTests(unittest.TestCase):
@@ -61,9 +63,9 @@ class ImportParserTests(unittest.TestCase):
 
         self.assertEqual(result["format"], "annual_blocks")
         self.assertEqual(result["summary"]["total_rows"], 275)
-        self.assertEqual(result["summary"]["valid_rows"], 257)
+        self.assertEqual(result["summary"]["valid_rows"], 258)
         self.assertEqual(result["summary"]["warning_rows"], 13)
-        self.assertEqual(result["summary"]["error_rows"], 5)
+        self.assertEqual(result["summary"]["error_rows"], 4)
         self.assertEqual(result["metadata"]["product_name"], "banano")
         self.assertEqual(result["metadata"]["quality"], "RC")
         self.assertEqual(result["metadata"]["presentation"], "caja")

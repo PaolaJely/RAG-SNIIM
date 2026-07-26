@@ -1,12 +1,26 @@
-import { X, Database, FileText } from "lucide-react";
+import { X, Database, FileText, Table2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import type { RagDocument } from "../../../types/chat";
+import type { RagDocument, RagVectorDocument, SqlResultDocument } from "../../../types/chat";
 
 function docKey(doc: RagDocument): string {
+  if (isSqlResultDocument(doc)) {
+    return `${doc.source}|${doc.type}|${doc.operation}|${doc.year ?? "all"}|${doc.markets?.join(",") ?? ""}`;
+  }
   return `${doc.fecha}|${doc.origen}|${doc.destino}|${doc.precio_frec}`;
 }
 
-function DocCard({ doc, index }: { doc: RagDocument; index: number }) {
+function isSqlResultDocument(doc: RagDocument): doc is SqlResultDocument {
+  return "source" in doc && doc.source === "postgres" && "rows" in doc;
+}
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "number") return Number.isInteger(value) ? value.toString() : value.toFixed(2);
+  if (Array.isArray(value)) return value.join(", ");
+  return String(value);
+}
+
+function VectorDocCard({ doc, index }: { doc: RagVectorDocument; index: number }) {
   const pct = Math.round(doc.similarity * 100);
   return (
     <motion.div
@@ -36,6 +50,65 @@ function DocCard({ doc, index }: { doc: RagDocument; index: number }) {
         max={100}
         aria-label={`Similitud ${pct}%`}
       />
+    </motion.div>
+  );
+}
+
+function SqlDocCard({ doc, index }: { doc: SqlResultDocument; index: number }) {
+  const firstRows = doc.rows.slice(0, 3);
+  const columns = Array.from(
+    firstRows.reduce((keys, row) => {
+      Object.keys(row).slice(0, 5).forEach((key) => keys.add(key));
+      return keys;
+    }, new Set<string>()),
+  );
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04 }}
+      className="rounded-lg border border-border bg-surface p-3 space-y-3"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-brand bg-brand-muted px-1.5 py-0.5 rounded">
+          <Table2 className="w-3 h-3" aria-hidden="true" />
+          Postgres
+        </span>
+        <span className="text-[10px] text-muted-foreground">{doc.rows.length} filas</span>
+      </div>
+      <div>
+        <p className="text-xs font-semibold text-foreground">{doc.operation}</p>
+        <p className="text-[11px] text-muted-foreground leading-snug">
+          {[doc.year, doc.markets?.join(", ")].filter(Boolean).join(" · ") || "Sin filtros adicionales"}
+        </p>
+      </div>
+      {firstRows.length > 0 && columns.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[10px]">
+            <thead>
+              <tr className="text-muted-foreground">
+                {columns.map((column) => (
+                  <th key={column} className="px-1 py-1 text-left font-medium">
+                    {column}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {firstRows.map((row, rowIndex) => (
+                <tr key={rowIndex} className="border-t border-border">
+                  {columns.map((column) => (
+                    <td key={column} className="px-1 py-1 text-foreground tabular-nums">
+                      {formatValue(row[column])}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -105,7 +178,11 @@ export function ContextDrawer({ open, onClose, docs }: Props) {
                 ) : (
                   <div className="space-y-2">
                     {docs.slice(0, 5).map((doc, i) => (
-                      <DocCard key={docKey(doc)} doc={doc} index={i} />
+                      isSqlResultDocument(doc) ? (
+                        <SqlDocCard key={docKey(doc)} doc={doc} index={i} />
+                      ) : (
+                        <VectorDocCard key={docKey(doc)} doc={doc} index={i} />
+                      )
                     ))}
                   </div>
                 )}

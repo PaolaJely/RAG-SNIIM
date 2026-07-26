@@ -22,7 +22,8 @@ POSTGRES_DB       = os.getenv("POSTGRES_DB", "sniim")
 POSTGRES_USER     = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
 POSTGRES_SSLMODE  = os.getenv("POSTGRES_SSLMODE", "prefer")
-POSTGRES_DSN = (
+POSTGRES_URL      = os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL")
+POSTGRES_DSN = POSTGRES_URL or (
     f"host={POSTGRES_HOST} port={POSTGRES_PORT} "
     f"dbname={POSTGRES_DB} user={POSTGRES_USER} "
     f"password={POSTGRES_PASSWORD} sslmode={POSTGRES_SSLMODE}"

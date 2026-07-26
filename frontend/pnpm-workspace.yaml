@@ -1,6 +1,15 @@
 packages:
   - '.'
 
+allowBuilds:
+  '@tailwindcss/oxide': true
+  esbuild: true
+
 minimumReleaseAge: 10080
 
-trustPolicy: no-downgrade
+overrides:
+  vite: 6.3.5
+
+onlyBuiltDependencies:
+  - '@tailwindcss/oxide'
+  - esbuild

@@ -1,3 +1,4 @@
+import argparse
 import json
 import hashlib
 import re
@@ -5,7 +6,18 @@ import uuid
 import psycopg2
 import config
 from pathlib import Path
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import (
+    Distance,
+    FloatIndexParams,
+    FloatIndexType,
+    KeywordIndexParams,
+    KeywordIndexType,
+    PointStruct,
+    TextIndexParams,
+    TextIndexType,
+    TokenizerType,
+    VectorParams,
+)
 from embeddings_factory import embeddings
 from qdrant_client_factory import get_qdrant_client
 
@@ -18,6 +30,36 @@ def _pg_connect():
 
 
 BATCH_SIZE = 30
+
+
+TEXT_INDEX = TextIndexParams(
+    type=TextIndexType.TEXT,
+    tokenizer=TokenizerType.WORD,
+    lowercase=True,
+    ascii_folding=True,
+)
+
+KEYWORD_INDEX = KeywordIndexParams(type=KeywordIndexType.KEYWORD)
+FLOAT_INDEX = FloatIndexParams(type=FloatIndexType.FLOAT)
+
+PAYLOAD_INDEXES = {
+    "producto_id": KEYWORD_INDEX,
+    "record_hash": KEYWORD_INDEX,
+    "anio": KEYWORD_INDEX,
+    "mes": KEYWORD_INDEX,
+    "unidad_normalizada": KEYWORD_INDEX,
+    "fecha": TEXT_INDEX,
+    "origen": TEXT_INDEX,
+    "destino": TEXT_INDEX,
+    "presentacion": TEXT_INDEX,
+    "presentacion_original": TEXT_INDEX,
+    "precio_min": FLOAT_INDEX,
+    "precio_max": FLOAT_INDEX,
+    "precio_frec": FLOAT_INDEX,
+    "precio_min_kg": FLOAT_INDEX,
+    "precio_max_kg": FLOAT_INDEX,
+    "precio_frec_kg": FLOAT_INDEX,
+}
 
 
 def parse_presentation_factor(presentacion: str) -> float | None:
@@ -83,6 +125,13 @@ def build_record_hash(record: dict, producto_id: str) -> str:
     return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
+def build_date_payload(fecha: str) -> dict:
+    parts = (fecha or "").split("/")
+    if len(parts) != 3:
+        return {"anio": None, "mes": None}
+    return {"anio": parts[2] or None, "mes": parts[1] or None}
+
+
 def build_point_id(record_hash: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, record_hash))
 
@@ -132,7 +181,56 @@ def ensure_qdrant_collection(vector_size: int) -> None:
         print(f"ℹ️  Colección '{config.QDRANT_COLLECTION}' ya existe en Qdrant")
 
 
-def index_file(json_path: Path, producto_id: str = "732") -> None:
+def recreate_qdrant_collection(vector_size: int) -> None:
+    existing = [c.name for c in qdrant.get_collections().collections]
+    if config.QDRANT_COLLECTION in existing:
+        qdrant.delete_collection(collection_name=config.QDRANT_COLLECTION)
+        print(f"🗑️  Colección '{config.QDRANT_COLLECTION}' eliminada de Qdrant")
+    qdrant.create_collection(
+        collection_name=config.QDRANT_COLLECTION,
+        vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+    )
+    print(f"✅ Colección '{config.QDRANT_COLLECTION}' recreada en Qdrant")
+
+
+def ensure_qdrant_payload_indexes() -> None:
+    """Crea índices de payload usados por los filtros estructurados del RAG."""
+    collection = qdrant.get_collection(config.QDRANT_COLLECTION)
+    existing_indexes = set((collection.payload_schema or {}).keys())
+
+    created = 0
+    skipped = 0
+    for field_name, field_schema in PAYLOAD_INDEXES.items():
+        if field_name in existing_indexes:
+            skipped += 1
+            continue
+        try:
+            qdrant.create_payload_index(
+                collection_name=config.QDRANT_COLLECTION,
+                field_name=field_name,
+                field_schema=field_schema,
+                wait=True,
+            )
+            created += 1
+            print(f"   Índice Qdrant creado: {field_name}")
+        except Exception as exc:
+            message = str(exc).lower()
+            if "already exists" in message or "already has" in message:
+                skipped += 1
+                continue
+            raise
+
+    print(
+        "✅ Índices de payload Qdrant listos "
+        f"(creados: {created}, existentes: {skipped})"
+    )
+
+
+def index_file(
+    json_path: Path,
+    producto_id: str = "732",
+    recreate_qdrant: bool = False,
+) -> None:
     """
     Indexa un archivo JSON en Qdrant (vectores) y Postgres (registros crudos).
 
@@ -147,7 +245,11 @@ def index_file(json_path: Path, producto_id: str = "732") -> None:
     print(f"📦 Total registros: {total} — archivo: {json_path.name}")
 
     vector_size = get_vector_size()
-    ensure_qdrant_collection(vector_size)
+    if recreate_qdrant:
+        recreate_qdrant_collection(vector_size)
+    else:
+        ensure_qdrant_collection(vector_size)
+    ensure_qdrant_payload_indexes()
 
     pg = _pg_connect()
     cur = pg.cursor()
@@ -189,6 +291,7 @@ def index_file(json_path: Path, producto_id: str = "732") -> None:
                     payload={
                         "producto_id":  producto_id,
                         "fecha":        record["Fecha"],
+                        **build_date_payload(record["Fecha"]),
                         "origen":       record["Origen"],
                         "destino":      record["Destino"],
                         **build_price_payload(record),
@@ -285,4 +388,28 @@ def index_file(json_path: Path, producto_id: str = "732") -> None:
 
 
 if __name__ == "__main__":
-    index_file(config.DATA_DIR / "platano_tabasco.json", producto_id="732")
+    parser = argparse.ArgumentParser(
+        description="Indexa datos SNIIM en Qdrant y Postgres."
+    )
+    parser.add_argument(
+        "--json",
+        type=Path,
+        default=config.DATA_DIR / "platano_tabasco.json",
+        help="Ruta del JSON generado por el scraper.",
+    )
+    parser.add_argument(
+        "--producto-id",
+        default="732",
+        help="ID SNIIM del producto.",
+    )
+    parser.add_argument(
+        "--recreate-qdrant",
+        action="store_true",
+        help="Elimina y recrea la colección Qdrant antes de indexar.",
+    )
+    args = parser.parse_args()
+    index_file(
+        args.json,
+        producto_id=args.producto_id,
+        recreate_qdrant=args.recreate_qdrant,
+    )
