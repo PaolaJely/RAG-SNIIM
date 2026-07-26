@@ -1,5 +1,4 @@
 from typing import List, Tuple, Dict, Optional
-from qdrant_client.models import Filter, FieldCondition, MatchValue
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -7,6 +6,7 @@ from langchain_community.callbacks import get_openai_callback
 import config
 from embeddings_factory import embeddings
 from compressor import formatear_contexto_toon
+from query_filters import QueryFilters, build_query_filters
 from qdrant_client_factory import get_qdrant_client
 
 # ==================== INICIALIZACIÓN ====================
@@ -38,17 +38,30 @@ def retriever(
 
     query_embedding = embeddings.embed_query(query)
 
-    search_filter = None
-    if producto_id:
-        search_filter = Filter(
-            must=[FieldCondition(key="producto_id", match=MatchValue(value=producto_id))]
+    filter_info = build_query_filters(query, producto_id=producto_id)
+    search_filter = filter_info.qdrant_filter
+    if search_filter:
+        print(
+            "🔎 Filtros estructurados:",
+            {
+                "fecha": filter_info.fecha_text,
+                "destino": filter_info.destino_terms,
+                "origen": filter_info.origen_terms,
+                "presentacion": filter_info.presentacion_text,
+            },
         )
 
     try:
+        if filter_info.comparative:
+            candidate_limit = min(max(k * 20, 100), 120)
+        elif search_filter:
+            candidate_limit = min(k * 6, 80)
+        else:
+            candidate_limit = min(k * 2, 20)
         respuesta_qdrant = qdrant.query_points(
             collection_name=config.QDRANT_COLLECTION,
             query=query_embedding,
-            limit=min(k * 2, 20),
+            limit=candidate_limit,
             query_filter=search_filter,
             with_payload=True,
         )
@@ -56,13 +69,13 @@ def retriever(
         documentos = [
             {**r.payload, "similarity": r.score}
             for r in respuesta_qdrant.points
-            if r.score >= config.SIMILARITY_THRESHOLD
+            if search_filter or r.score >= config.SIMILARITY_THRESHOLD
         ]
 
         if not documentos:
             return "", []
 
-        documentos = diversificar_documentos(documentos, k)
+        documentos = diversificar_documentos(documentos, k, filter_info)
         return formatear_contexto_toon(documentos), documentos
 
     except Exception as e:
@@ -70,13 +83,23 @@ def retriever(
         return "", []
 
 
-def diversificar_documentos(docs: List[Dict], k: int) -> List[Dict]:
+def diversificar_documentos(
+    docs: List[Dict],
+    k: int,
+    filter_info: Optional[QueryFilters] = None,
+) -> List[Dict]:
     """Prioriza pares únicos origen/destino para evitar redundancia en el contexto."""
+    if filter_info and filter_info.comparative and filter_info.destino_terms:
+        return diversificar_por_terminos(docs, k, filter_info.destino_terms)
+
     seleccionados: List[Dict] = []
     pares_vistos: set = set()
 
     for doc in docs:
-        par = (doc.get("origen", ""), doc.get("destino", ""))
+        if filter_info and filter_info.temporal:
+            par = (doc.get("destino", ""), doc.get("fecha", ""))
+        else:
+            par = (doc.get("origen", ""), doc.get("destino", ""))
         if par not in pares_vistos:
             seleccionados.append(doc)
             pares_vistos.add(par)
@@ -92,6 +115,31 @@ def diversificar_documentos(docs: List[Dict], k: int) -> List[Dict]:
     return seleccionados[:k]
 
 
+def diversificar_por_terminos(docs: List[Dict], k: int, terms: List[str]) -> List[Dict]:
+    seleccionados: List[Dict] = []
+    usados: set[int] = set()
+    normalized_terms = [term.lower() for term in terms]
+
+    for term in normalized_terms:
+        for index, doc in enumerate(docs):
+            if index in usados:
+                continue
+            destino = (doc.get("destino") or "").lower()
+            if term.lower() in destino:
+                seleccionados.append(doc)
+                usados.add(index)
+                break
+
+    for index, doc in enumerate(docs):
+        if len(seleccionados) >= k:
+            return seleccionados
+        if index not in usados:
+            seleccionados.append(doc)
+            usados.add(index)
+
+    return seleccionados[:k]
+
+
 # ==================== GENERATION ====================
 _TEMPLATE = """Eres un experto en precios de plátanos en Tabasco, México.
 Tu objetivo es analizar datos de precios, orígenes y destinos de manera clara y precisa.
@@ -101,7 +149,9 @@ Los registros están en formato TOON: campos declarados una vez en la cabecera, 
 ESTRUCTURA DE LOS DATOS:
 - Origen: estado o región donde se produce el plátano
 - Destino: mercado o ciudad donde se vende
-- Precios en pesos mexicanos (MXN) por kilogramo
+- Los campos precio_min, precio_max y precio_frec son precios en la presentación original del registro
+- Si existen precio_min_kg, precio_max_kg y precio_frec_kg con unidad_normalizada = MXN/kg, usa esos campos como precio principal y menciona MXN/kg
+- Si unidad_normalizada es presentacion_original, o los campos normalizados están vacíos, menciona los precios en la presentación original y no afirmes que son MXN/kg
 - Fechas en formato DD/MM/YYYY (día/mes/año)
 - Presentación: formato del producto (ej: caja, racimo, etc)
 
@@ -116,7 +166,7 @@ INSTRUCCIONES CRÍTICAS:
 2. NUNCA inventes datos que no aparezcan en los registros
 3. Extrae y cita: fechas específicas, precios exactos, orígenes, destinos
 4. Formatea fechas de forma legible: "12 de enero de 2025"
-5. Cuando menciones precios, siempre incluye: "Precio frecuente: $XX/kg (Rango: $XX-$XX/kg)"
+5. Cuando unidad_normalizada = MXN/kg, responde con precio_frec_kg y rango precio_min_kg-precio_max_kg como valores principales; puedes mencionar el precio original como referencia
 6. Si hay múltiples registros, proporciona valor más alto, más bajo y promedio si es relevante
 7. Ordena datos cronológicamente cuando sea aplicable
 8. Si los datos son limitados pero relevantes, úsalos e indica: "Con los datos disponibles..."

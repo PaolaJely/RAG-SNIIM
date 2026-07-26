@@ -1,4 +1,6 @@
 import json
+import hashlib
+import re
 import uuid
 import psycopg2
 import config
@@ -18,8 +20,87 @@ def _pg_connect():
 BATCH_SIZE = 30
 
 
+def parse_presentation_factor(presentacion: str) -> float | None:
+    """Return kg per presentation when it is explicit and safe to convert."""
+    if not presentacion:
+        return None
+
+    normalized = presentacion.strip().lower()
+    if normalized in {"kg", "kilogramo", "kilogramo."}:
+        return 1.0
+
+    match = re.search(r"(\d+(?:[.,]\d+)?)\s*kg\b", normalized)
+    if not match:
+        return None
+
+    factor = float(match.group(1).replace(",", "."))
+    return factor if factor > 0 else None
+
+
+def normalize_price(value: float | None, factor: float | None) -> float | None:
+    if value is None or factor is None:
+        return None
+    return round(value / factor, 2)
+
+
+def build_price_payload(record: dict) -> dict:
+    presentacion = record["Presentación"]
+    precio_min = float(record["Precio Mín"])
+    precio_max = float(record["Precio Max"])
+    precio_frec = float(record["Precio Frec"])
+    factor = parse_presentation_factor(presentacion)
+
+    return {
+        # Campos existentes: se conservan como precios crudos por presentación.
+        "presentacion": presentacion,
+        "precio_min": precio_min,
+        "precio_max": precio_max,
+        "precio_frec": precio_frec,
+        # Campos explícitos para evitar ambigüedad de unidad en el RAG.
+        "presentacion_original": presentacion,
+        "precio_min_original": precio_min,
+        "precio_max_original": precio_max,
+        "precio_frec_original": precio_frec,
+        "precio_min_kg": normalize_price(precio_min, factor),
+        "precio_max_kg": normalize_price(precio_max, factor),
+        "precio_frec_kg": normalize_price(precio_frec, factor),
+        "unidad_normalizada": "MXN/kg" if factor else "presentacion_original",
+        "factor_conversion": factor,
+    }
+
+
+def build_record_hash(record: dict, producto_id: str) -> str:
+    key = "|".join([
+        producto_id,
+        str(record.get("Fecha", "")),
+        str(record.get("Origen", "")),
+        str(record.get("Destino", "")),
+        str(record.get("Presentación", "")),
+        str(record.get("Precio Mín", "")),
+        str(record.get("Precio Max", "")),
+        str(record.get("Precio Frec", "")),
+    ])
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+def build_point_id(record_hash: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, record_hash))
+
+
 def build_contenido(record: dict) -> str:
     """Construye el texto que se embeddea para búsqueda vectorial."""
+    price_payload = build_price_payload(record)
+    if price_payload["factor_conversion"]:
+        unidad = (
+            "Precio frecuente normalizado: "
+            f"{price_payload['precio_frec_kg']} MXN/kg"
+        )
+    else:
+        unidad = (
+            "Precio frecuente en presentación original: "
+            f"{price_payload['precio_frec_original']} por {record['Presentación']}"
+        )
+
     return (
         f"Fecha: {record['Fecha']} | "
         f"Presentación: {record['Presentación']} | "
@@ -27,7 +108,8 @@ def build_contenido(record: dict) -> str:
         f"Destino: {record['Destino']} | "
         f"Precio mínimo: {record['Precio Mín']} | "
         f"Precio máximo: {record['Precio Max']} | "
-        f"Precio frecuente: {record['Precio Frec']}"
+        f"Precio frecuente: {record['Precio Frec']} | "
+        f"{unidad}"
     )
 
 
@@ -69,14 +151,32 @@ def index_file(json_path: Path, producto_id: str = "732") -> None:
 
     pg = _pg_connect()
     cur = pg.cursor()
-    cur.execute("SELECT COUNT(*) FROM producto")
-    start = cur.fetchone()[0]
-    if start > 0:
-        print(f"↪ Reanudando desde registro {start} ({start / total * 100:.1f}%)")
 
-    for i in range(start, total, BATCH_SIZE):
-        batch    = data[i: i + BATCH_SIZE]
-        contenidos = [build_contenido(r) for r in batch]
+    processed = 0
+    qdrant_upserts = 0
+    pg_inserted = 0
+    duplicates = 0
+    errors = 0
+    seen_hashes: set[str] = set()
+
+    for i in range(0, total, BATCH_SIZE):
+        raw_batch = data[i: i + BATCH_SIZE]
+        batch = []
+        for record in raw_batch:
+            record_hash = build_record_hash(record, producto_id)
+            if record_hash in seen_hashes:
+                duplicates += 1
+                continue
+            seen_hashes.add(record_hash)
+            batch.append((record, record_hash))
+
+        processed += len(raw_batch)
+        if not batch:
+            print(f"  {min(i + BATCH_SIZE, total)}/{total} — lote duplicado omitido")
+            continue
+
+        records = [record for record, _ in batch]
+        contenidos = [build_contenido(record) for record in records]
 
         try:
             vectors = embeddings.embed_documents(contenidos)
@@ -84,24 +184,24 @@ def index_file(json_path: Path, producto_id: str = "732") -> None:
             # ── Qdrant: vectores + payload ─────────────
             points = [
                 PointStruct(
-                    id=str(uuid.uuid4()),
+                    id=build_point_id(record_hash),
                     vector=vector,
                     payload={
                         "producto_id":  producto_id,
                         "fecha":        record["Fecha"],
-                        "presentacion": record["Presentación"],
                         "origen":       record["Origen"],
                         "destino":      record["Destino"],
-                        "precio_min":   float(record["Precio Mín"]),
-                        "precio_max":   float(record["Precio Max"]),
-                        "precio_frec":  float(record["Precio Frec"]),
+                        **build_price_payload(record),
+                        "record_hash":  record_hash,
                         "obs":          record.get("Obs.", ""),
                         "contenido":    contenido,
                     },
                 )
-                for record, contenido, vector in zip(batch, contenidos, vectors)
+                for (record, record_hash), contenido, vector
+                in zip(batch, contenidos, vectors)
             ]
             qdrant.upsert(collection_name=config.QDRANT_COLLECTION, points=points)
+            qdrant_upserts += len(points)
 
             # ── Postgres: registros crudos ─────────────
             cur.executemany(
@@ -109,7 +209,19 @@ def index_file(json_path: Path, producto_id: str = "732") -> None:
                 INSERT INTO producto
                     (producto_id, fecha, presentacion, origen, destino,
                      precio_min, precio_max, precio_frec, obs)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM producto
+                    WHERE producto_id = %s
+                      AND fecha = %s
+                      AND COALESCE(presentacion, '') = COALESCE(%s, '')
+                      AND COALESCE(origen, '') = COALESCE(%s, '')
+                      AND COALESCE(destino, '') = COALESCE(%s, '')
+                      AND precio_min IS NOT DISTINCT FROM %s
+                      AND precio_max IS NOT DISTINCT FROM %s
+                      AND precio_frec IS NOT DISTINCT FROM %s
+                )
                 """,
                 [
                     (
@@ -122,16 +234,27 @@ def index_file(json_path: Path, producto_id: str = "732") -> None:
                         float(r["Precio Max"]),
                         float(r["Precio Frec"]),
                         r.get("Obs.", ""),
+                        producto_id,
+                        r["Fecha"],
+                        r["Presentación"],
+                        r["Origen"],
+                        r["Destino"],
+                        float(r["Precio Mín"]),
+                        float(r["Precio Max"]),
+                        float(r["Precio Frec"]),
                     )
-                    for r in batch
+                    for r in records
                 ],
             )
+            if cur.rowcount and cur.rowcount > 0:
+                pg_inserted += cur.rowcount
             pg.commit()
 
             progreso = min(i + BATCH_SIZE, total)
             print(f"  {progreso}/{total} ({progreso / total * 100:.1f}%)")
 
         except Exception as e:
+            errors += 1
             try:
                 pg.rollback()
             except psycopg2.InterfaceError:
@@ -150,7 +273,15 @@ def index_file(json_path: Path, producto_id: str = "732") -> None:
     cur2.execute("SELECT COUNT(*) FROM producto")
     inserted = cur2.fetchone()[0]
     cur2.connection.close()
-    print(f"✅ Completado: {inserted}/{total} registros en Postgres (Qdrant actualizado en lotes)")
+    pg_skipped = qdrant_upserts - pg_inserted
+    print("✅ Ingesta completada")
+    print(f"   Registros procesados: {processed}")
+    print(f"   Qdrant upserts: {qdrant_upserts}")
+    print(f"   Postgres insertados: {pg_inserted}")
+    print(f"   Postgres omitidos por duplicado: {max(pg_skipped, 0)}")
+    print(f"   Duplicados omitidos en archivo: {duplicates}")
+    print(f"   Errores de lote: {errors}")
+    print(f"   Total actual en Postgres: {inserted}")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,10 @@ venv/
 
 # Node
 node_modules/
+.pnpm-store/
+dist/
+frontend/dist/
+frontend/.vercel/
 
 # Datos generados
 data/platano_tabasco.json

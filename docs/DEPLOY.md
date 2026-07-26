@@ -256,6 +256,35 @@ cd ../rag && python embed.py
 
 No hace falta redeploy de la API ni del frontend salvo cambios de código.
 
+### Migrar Qdrant Docker a Qdrant Cloud sin re-embeddear
+
+Si ya tienes la colección `sniim` cargada en el contenedor local `sniim-qdrant`, puedes copiarla a Qdrant Cloud sin llamar a OpenAI:
+
+```bash
+# 1. Dejar Qdrant local levantado
+docker compose up -d qdrant
+
+# 2. Configurar Qdrant Cloud en .env
+QDRANT_URL=https://TU-CLUSTER.cloud.qdrant.io:6333
+QDRANT_API_KEY=tu-api-key
+QDRANT_COLLECTION=sniim
+
+# 3. Copiar vectores, payloads e ids locales a Cloud
+cd rag && python migrate_cloud.py
+```
+
+Por defecto el script hace `upsert` y no borra la colección destino. Para reemplazar completamente la colección cloud:
+
+```bash
+cd rag && python migrate_cloud.py --recreate-qdrant
+```
+
+La copia de Postgres local a Neon es opcional y explícita:
+
+```bash
+cd rag && python migrate_cloud.py --postgres --truncate-postgres
+```
+
 ---
 
 ## Límites del tier gratuito

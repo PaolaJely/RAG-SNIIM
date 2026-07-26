@@ -623,13 +623,37 @@ def post_chat(body: ChatRequest):
         raise HTTPException(status_code=400, detail="La pregunta no puede estar vacía")
 
     try:
+        from query_router import classify_query_intent
         from rag import rag_query
+        from sql_tool import answer_analytic_question, answer_hybrid_question
+
+        intent = classify_query_intent(body.pregunta)
+        if intent["intent"] == "analitica_sql":
+            result = answer_analytic_question(body.pregunta)
+            return {
+                "respuesta": result["respuesta"],
+                "documentos": result["documentos"],
+                "total_docs": len(result["documentos"]),
+                "tokens": result.get("tokens"),
+                "intent": intent,
+            }
+        if intent["intent"] == "hibrida":
+            result = answer_hybrid_question(body.pregunta)
+            return {
+                "respuesta": result["respuesta"],
+                "documentos": result["documentos"],
+                "total_docs": len(result["documentos"]),
+                "tokens": result.get("tokens"),
+                "intent": intent,
+            }
+
         result = rag_query(body.pregunta, verbose=False)
         return {
             "respuesta": result["respuesta"],
             "documentos": result["documentos"],
             "total_docs": len(result["documentos"]),
             "tokens": result.get("tokens"),
+            "intent": intent,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

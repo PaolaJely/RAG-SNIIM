@@ -8,6 +8,15 @@ CAMPOS_TOON = [
     "precio_min",
     "precio_max",
     "precio_frec",
+    "presentacion_original",
+    "precio_min_original",
+    "precio_max_original",
+    "precio_frec_original",
+    "precio_min_kg",
+    "precio_max_kg",
+    "precio_frec_kg",
+    "unidad_normalizada",
+    "factor_conversion",
     "obs",
 ]
 
@@ -22,8 +31,8 @@ def formatear_contexto_toon(documentos: list[dict]) -> str:
     individuales porque los nombres de campo se declaran una sola vez.
 
     Formato generado:
-        fecha|origen|destino|presentacion|precio_min|precio_max|precio_frec|obs
-        15/01/2025|Tabasco|Villahermosa, Tab.|Caja|8.5|10.0|9.0|
+        fecha|origen|destino|presentacion|precio_min|precio_max|precio_frec|...|obs
+        15/01/2025|Tabasco|Villahermosa, Tab.|Caja de 20 kg.|180|200|190|...|
         ...
     """
     if not documentos:
