@@ -14,19 +14,19 @@ services:
     healthCheckPath: /health
     envVars:
       - key: QDRANT_URL
-        sync: false
+        value: https://0cd1ea76-cfb2-4f16-842f-138f1604d7d6.us-west-2-0.aws.cloud.qdrant.io
       - key: QDRANT_API_KEY
         sync: false
       - key: QDRANT_COLLECTION
         value: sniim
       - key: POSTGRES_HOST
-        sync: false
+        value: ep-holy-sky-axoxtpy5.c-4.us-east-2.aws.neon.tech
       - key: POSTGRES_PORT
         value: "5432"
       - key: POSTGRES_DB
-        sync: false
+        value: neondb
       - key: POSTGRES_USER
-        sync: false
+        value: neondb_owner
       - key: POSTGRES_PASSWORD
         sync: false
       - key: POSTGRES_SSLMODE
