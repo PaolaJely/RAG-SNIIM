@@ -29,10 +29,15 @@ POSTGRES_DSN = POSTGRES_URL or (
     f"password={POSTGRES_PASSWORD} sslmode={POSTGRES_SSLMODE}"
 )
 
-# ── OpenAI ─────────────────────────────────────────────
+# ── OpenAI embeddings ──────────────────────────────────
 OPENAI_API_KEY         = os.getenv("OPENAI_API_KEY", "")
-OPENAI_LLM_MODEL       = os.getenv("OPENAI_LLM_MODEL", "gpt-4o-mini")
 OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+
+# ── DeepSeek LLM ───────────────────────────────────────
+DEEPSEEK_API_KEY       = os.getenv("DEEPSEEK_API_KEY", "")
+DEEPSEEK_BASE_URL      = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+DEEPSEEK_LLM_MODEL     = os.getenv("DEEPSEEK_LLM_MODEL", "deepseek-v4-flash")
+DEEPSEEK_THINKING_MODE = os.getenv("DEEPSEEK_THINKING_MODE", "disabled").lower()
 
 # ── RAG ────────────────────────────────────────────────
 SEARCH_K             = int(os.getenv("SEARCH_K", "16"))

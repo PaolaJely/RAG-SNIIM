@@ -26,7 +26,7 @@ RAG-SNIIM-main/
 |---|---|
 | Scraper | Node.js, Playwright, pnpm |
 | Embeddings | OpenAI (`text-embedding-3-small`) |
-| LLM | OpenAI (`gpt-4o-mini`) |
+| LLM | DeepSeek (`deepseek-v4-flash`) |
 | Vector store | Qdrant |
 | Datos analíticos | PostgreSQL 17 |
 | Infraestructura | Docker Compose (Qdrant + Postgres) |
@@ -40,7 +40,8 @@ RAG-SNIIM-main/
 - **Docker** y **Docker Compose** (recomendado para levantar Qdrant y Postgres)
 - **Node.js** ≥ 18 y **pnpm** ≥ 10
 - **Python** ≥ 3.11
-- **API key de OpenAI** con acceso a embeddings y al modelo `gpt-4o-mini`
+- **API key de OpenAI** con acceso a embeddings `text-embedding-3-small`
+- **API key de DeepSeek** con acceso a `deepseek-v4-flash`
 
 ---
 
@@ -65,9 +66,12 @@ cp .env.example .env
 | `POSTGRES_SSLMODE` | Modo SSL (`prefer` local, `require` en Neon) |
 | `QDRANT_URL` | URL de Qdrant Cloud (producción; opcional en local) |
 | `QDRANT_API_KEY` | API key de Qdrant Cloud (producción; opcional en local) |
-| `OPENAI_API_KEY` | API key de OpenAI |
-| `OPENAI_LLM_MODEL` | Modelo LLM (por defecto `gpt-4o-mini`) |
+| `OPENAI_API_KEY` | API key de OpenAI para embeddings |
 | `OPENAI_EMBEDDING_MODEL` | Modelo de embeddings (por defecto `text-embedding-3-small`) |
+| `DEEPSEEK_API_KEY` | API key de DeepSeek para generación |
+| `DEEPSEEK_BASE_URL` | Base URL compatible con OpenAI (por defecto `https://api.deepseek.com`) |
+| `DEEPSEEK_LLM_MODEL` | Modelo LLM (por defecto `deepseek-v4-flash`) |
+| `DEEPSEEK_THINKING_MODE` | Modo thinking de DeepSeek (`disabled` por defecto) |
 | `SEARCH_K` | Número de documentos a recuperar por consulta (por defecto `16`) |
 | `SIMILARITY_THRESHOLD` | Umbral mínimo de similitud para filtrar resultados (por defecto `0.2`) |
 
@@ -239,7 +243,7 @@ Portal SNIIM
                               ┌───────────┴───────────┐
                               ▼                       ▼
                      [api/main.py]              [rag/rag.py]
-                     (FastAPI REST)          (Pipeline RAG + gpt-4o-mini)
+                     (FastAPI REST)       (Pipeline RAG + deepseek-v4-flash)
                               │                       │
                               └───────────┬───────────┘
                                           ▼
@@ -257,4 +261,4 @@ El chat responde preguntas en lenguaje natural sobre los precios de plátano, po
 - *"¿Qué mercados tienen el precio más bajo?"*
 - *"Compara los precios de Villahermosa con los de Ciudad de México"*
 
-El pipeline RAG recupera los registros más relevantes de Qdrant mediante búsqueda vectorial (embeddings OpenAI) y los envía a **gpt-4o-mini** para generar una respuesta fundamentada únicamente en los datos disponibles.
+El pipeline RAG recupera los registros más relevantes de Qdrant mediante búsqueda vectorial (embeddings OpenAI) y los envía a **deepseek-v4-flash** para generar una respuesta fundamentada únicamente en los datos disponibles.

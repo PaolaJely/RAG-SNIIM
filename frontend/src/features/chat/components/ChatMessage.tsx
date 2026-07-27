@@ -11,7 +11,8 @@ function TokenBadge({ tokens }: { tokens: TokenInfo }) {
       className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-muted text-[10px] text-muted-foreground font-mono"
     >
       <Zap className="w-2.5 h-2.5" aria-hidden="true" />
-      {tokens.tokens_total.toLocaleString()} tokens · ${tokens.costo_usd.toFixed(5)}
+      {tokens.tokens_total.toLocaleString()} tokens
+      {tokens.costo_usd != null && ` · $${tokens.costo_usd.toFixed(5)}`}
     </span>
   );
 }

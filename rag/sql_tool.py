@@ -8,9 +8,9 @@ import psycopg2.extras
 from langchain_community.callbacks import get_openai_callback
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
-from langchain_openai import ChatOpenAI
 
 import config
+from deepseek_llm import get_deepseek_chat_model
 from query_filters import build_query_filters
 
 
@@ -69,11 +69,7 @@ producto_norm AS (
 )
 """
 
-llm = ChatOpenAI(
-    model=config.OPENAI_LLM_MODEL,
-    api_key=config.OPENAI_API_KEY,
-    temperature=0.2,
-)
+llm = get_deepseek_chat_model(temperature=0.2)
 
 _SQL_SYNTHESIS_TEMPLATE = """Eres un analista de precios SNIIM.
 
@@ -568,7 +564,7 @@ def _synthesize_sql_answer(
             "tokens_prompt": cb.prompt_tokens,
             "tokens_completion": cb.completion_tokens,
             "tokens_total": cb.total_tokens,
-            "costo_usd": round(cb.total_cost, 6),
+            "costo_usd": None,
         }
         return answer, token_info
     except Exception as exc:

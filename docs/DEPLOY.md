@@ -15,7 +15,7 @@ Esta guía describe cómo publicar el proyecto en producción usando servicios g
                          ┌────────────────┼────────────────┐
                          ▼                ▼                ▼
                   ┌────────────┐  ┌────────────┐  ┌─────────────┐
-                  │ Neon       │  │ Qdrant     │  │ OpenAI API  │
+                  │ Neon       │  │ Qdrant     │  │ DeepSeek API│
                   │ PostgreSQL │  │ Cloud      │  │ (de pago)   │
                   │ (dashboard)│  │ (vectores) │  │             │
                   └────────────┘  └────────────┘  └─────────────┘
@@ -27,7 +27,8 @@ Esta guía describe cómo publicar el proyecto en producción usando servicios g
 | **Neon** | KPIs, heatmap, mercados (Postgres) | 0.5 GB, permanente |
 | **Render** | API FastAPI | Web service free (cold start ~1 min) |
 | **Cloudflare Pages** | Dashboard React | Ilimitado para estáticos |
-| **OpenAI** | Embeddings + LLM | Pago por uso (requerido) |
+| **OpenAI** | Embeddings para Qdrant | Pago por uso (requerido) |
+| **DeepSeek** | LLM para respuestas del chat | Pago por uso (requerido) |
 
 > El **scraper** y la **indexación** (`embed.py`) se ejecutan desde tu PC apuntando a las bases en la nube. No van en el deploy.
 
@@ -40,7 +41,8 @@ Esta guía describe cómo publicar el proyecto en producción usando servicios g
 - Cuenta en [Neon](https://neon.tech) (Postgres gratuito permanente)
 - Cuenta en [Render](https://render.com) (API)
 - Cuenta en [Cloudflare](https://dash.cloudflare.com) (frontend)
-- API key de **OpenAI** con acceso a `gpt-4o-mini` y `text-embedding-3-small`
+- API key de **OpenAI** con acceso a `text-embedding-3-small`
+- API key de **DeepSeek** con acceso a `deepseek-v4-flash`
 - Python ≥ 3.11 y pnpm en tu máquina local
 
 ---
@@ -164,18 +166,19 @@ El repo incluye `api/Dockerfile` y `render.yaml` (Blueprint) listos para producc
 
 1. Sube el repo a GitHub.
 2. En [render.com](https://render.com): **New → Blueprint** → conecta el repo.
-3. Render detecta `render.yaml` y crea el servicio `rag-sniim-api`.
+3. Render detecta `render.yaml` y crea el servicio `rag-sniim-api-deepseek`.
 4. Completa en el dashboard las variables marcadas como secretas (`sync: false`):
    - `QDRANT_URL`, `QDRANT_API_KEY`
    - `POSTGRES_HOST`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
-   - `OPENAI_API_KEY`
-5. Deploy. Anota la URL: `https://rag-sniim-api.onrender.com`
+   - `OPENAI_API_KEY` para embeddings
+   - `DEEPSEEK_API_KEY` para generación
+5. Deploy. Anota la URL: `https://rag-sniim-api-deepseek.onrender.com`
 
 ### Opción B — Web Service manual (Docker)
 
 | Campo | Valor |
 |---|---|
-| **Name** | `rag-sniim-api` |
+| **Name** | `rag-sniim-api-deepseek` |
 | **Environment** | Docker |
 | **Dockerfile Path** | `api/Dockerfile` |
 | **Docker Context** | `.` (raíz del repo) |
@@ -195,30 +198,33 @@ Variables de entorno: mismas que en la tabla siguiente.
 | `POSTGRES_USER` | `neondb_owner` |
 | `POSTGRES_PASSWORD` | `***` |
 | `POSTGRES_SSLMODE` | `require` |
-| `OPENAI_API_KEY` | `sk-...` |
-| `OPENAI_LLM_MODEL` | `gpt-4o-mini` |
+| `OPENAI_API_KEY` | `sk-...` para embeddings |
 | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` |
+| `DEEPSEEK_API_KEY` | `sk-...` |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` |
+| `DEEPSEEK_LLM_MODEL` | `deepseek-v4-flash` |
+| `DEEPSEEK_THINKING_MODE` | `disabled` |
 | `SEARCH_K` | `16` |
 | `SIMILARITY_THRESHOLD` | `0.2` |
 
 ### Verificar
 
 ```bash
-curl https://rag-sniim-api.onrender.com/health
-curl https://rag-sniim-api.onrender.com/api/kpis
+curl https://rag-sniim-api-deepseek.onrender.com/health
+curl https://rag-sniim-api-deepseek.onrender.com/api/kpis
 
 # Ruta analítica: debe usar Neon/Postgres y devolver intent=analitica_sql
-curl -X POST https://rag-sniim-api.onrender.com/api/chat \
+curl -X POST https://rag-sniim-api-deepseek.onrender.com/api/chat \
   -H 'Content-Type: application/json' \
   -d '{"pregunta":"Cual fue el precio promedio en 2025?"}'
 
 # Ruta vectorial: debe usar Qdrant Cloud y devolver documentos con similarity
-curl -X POST https://rag-sniim-api.onrender.com/api/chat \
+curl -X POST https://rag-sniim-api-deepseek.onrender.com/api/chat \
   -H 'Content-Type: application/json' \
   -d '{"pregunta":"Que informacion hay sobre Villahermosa?"}'
 
 # Ruta híbrida: debe usar Neon/Postgres para métricas y LLM para explicación
-curl -X POST https://rag-sniim-api.onrender.com/api/chat \
+curl -X POST https://rag-sniim-api-deepseek.onrender.com/api/chat \
   -H 'Content-Type: application/json' \
   -d '{"pregunta":"Compara Monterrey y CDMX y dime cual tuvo mejor comportamiento."}'
 ```
@@ -244,7 +250,7 @@ curl -X POST https://rag-sniim-api.onrender.com/api/chat \
 
 | Variable | Valor |
 |---|---|
-| `VITE_API_URL` | `https://rag-sniim-api.onrender.com` |
+| `VITE_API_URL` | `https://rag-sniim-api-deepseek.onrender.com` |
 
 5. Deploy. URL resultante: `https://rag-sniim.pages.dev` (o tu dominio custom).
 
@@ -316,7 +322,8 @@ cd rag && python migrate_cloud.py --postgres --truncate-postgres
 | **Qdrant Cloud free** | ~1 GB RAM; cluster puede suspenderse por inactividad prolongada | Primera consulta RAG lenta tras suspensión |
 | **Neon free** | 0.5 GB; scale-to-zero tras 5 min | Primera query SQL lenta |
 | **Render free** | Cold start ~1 min; 750 h/mes | API lenta al despertar |
-| **OpenAI** | Pago por token | ~$0.01–0.10 por conversación de chat |
+| **OpenAI** | Pago por token | Usado en embeddings e indexación |
+| **DeepSeek** | Pago por token | Usado en generación del chat |
 
 ---
 
@@ -377,10 +384,15 @@ POSTGRES_USER=neondb_owner
 POSTGRES_PASSWORD=***
 POSTGRES_SSLMODE=require
 
-# ── OpenAI ────────────────────────────────────────────
+# ── OpenAI embeddings ─────────────────────────────────
 OPENAI_API_KEY=sk-...
-OPENAI_LLM_MODEL=gpt-4o-mini
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+
+# ── DeepSeek LLM ──────────────────────────────────────
+DEEPSEEK_API_KEY=sk-...
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_LLM_MODEL=deepseek-v4-flash
+DEEPSEEK_THINKING_MODE=disabled
 
 # ── RAG ───────────────────────────────────────────────
 SEARCH_K=16

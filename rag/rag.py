@@ -1,22 +1,18 @@
 from typing import List, Tuple, Dict, Optional
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.callbacks import get_openai_callback
 import config
 from embeddings_factory import embeddings
 from compressor import formatear_contexto_toon
+from deepseek_llm import get_deepseek_chat_model
 from query_filters import QueryFilters, build_query_filters
 from qdrant_client_factory import get_qdrant_client
 
 # ==================== INICIALIZACIÓN ====================
 qdrant = get_qdrant_client()
 
-llm = ChatOpenAI(
-    model=config.OPENAI_LLM_MODEL,
-    api_key=config.OPENAI_API_KEY,
-    temperature=0.7,
-)
+llm = get_deepseek_chat_model(temperature=0.7)
 
 # ==================== RETRIEVAL ====================
 def retriever(
@@ -228,7 +224,7 @@ def rag_query(
         "tokens_prompt":     cb.prompt_tokens,
         "tokens_completion": cb.completion_tokens,
         "tokens_total":      cb.total_tokens,
-        "costo_usd":         round(cb.total_cost, 6),
+        "costo_usd":         None,
     }
 
     if verbose:
@@ -258,7 +254,7 @@ if __name__ == "__main__":
     print("🍌 RAG - SISTEMA DE PRECIOS DE PLÁTANOS SNIIM")
     print(f"{'='*70}")
     print(f"📌 Embeddings: OpenAI ({config.OPENAI_EMBEDDING_MODEL})")
-    print(f"📌 LLM: OpenAI ({config.OPENAI_LLM_MODEL})")
+    print(f"📌 LLM: DeepSeek ({config.DEEPSEEK_LLM_MODEL})")
     print(f"📌 Qdrant: {config.QDRANT_HOST}:{config.QDRANT_PORT}/{config.QDRANT_COLLECTION}")
     print(f"📌 Top-{config.SEARCH_K} docs | Umbral: {config.SIMILARITY_THRESHOLD}")
     print(f"\n💡 Escribe 'salir' para terminar")

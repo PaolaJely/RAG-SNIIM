@@ -6,10 +6,10 @@ import io
 import json
 from typing import Optional
 
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 import config
+from deepseek_llm import get_deepseek_chat_model
 
 
 CANONICAL_FIELDS = {
@@ -64,18 +64,14 @@ async def suggest_csv_mapping(
     content: bytes,
 ) -> tuple[dict[str, str], dict]:
     """Propone source-column → canonical-field sin ejecutar acciones externas."""
-    if not config.OPENAI_API_KEY:
-        raise RuntimeError("OPENAI_API_KEY no está configurada para usar el agente.")
+    if not config.DEEPSEEK_API_KEY:
+        raise RuntimeError("DEEPSEEK_API_KEY no está configurada para usar el agente.")
 
     headers, samples = csv_profile(content)
     if not headers:
         raise ValueError("El CSV no contiene encabezados.")
 
-    model = ChatOpenAI(
-        model=config.OPENAI_LLM_MODEL,
-        api_key=config.OPENAI_API_KEY,
-        temperature=0,
-    )
+    model = get_deepseek_chat_model(temperature=0)
     structured_model = model.with_structured_output(ColumnMappingSuggestion)
     suggestion = await structured_model.ainvoke(
         [

@@ -6,7 +6,7 @@
 
 services:
   - type: web
-    name: rag-sniim-api
+    name: rag-sniim-api-deepseek
     runtime: docker
     dockerfilePath: ./api/Dockerfile
     dockerContext: .
@@ -33,10 +33,16 @@ services:
         value: require
       - key: OPENAI_API_KEY
         sync: false
-      - key: OPENAI_LLM_MODEL
-        value: gpt-4o-mini
       - key: OPENAI_EMBEDDING_MODEL
         value: text-embedding-3-small
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: DEEPSEEK_BASE_URL
+        value: https://api.deepseek.com
+      - key: DEEPSEEK_LLM_MODEL
+        value: deepseek-v4-flash
+      - key: DEEPSEEK_THINKING_MODE
+        value: disabled
       - key: SEARCH_K
         value: "32"
       - key: SIMILARITY_THRESHOLD
