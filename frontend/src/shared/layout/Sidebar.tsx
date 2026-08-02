@@ -4,7 +4,7 @@ import type { NavItemConfig } from "./NavItem";
 
 // ─── Navigation config ────────────────────────────────────────────────────────
 // `disabled: true` renders a non-interactive placeholder instead of a broken link.
-// Remove the flag once the route is implemented in routes.ts.
+// Remove the flag once the route is implemented in routes.tsx.
 
 const NAV_ITEMS: NavItemConfig[] = [
   { to: "/",             end: true,  icon: BarChart3,    label: "Dashboard",     hint: "D" },
@@ -27,7 +27,7 @@ export function Sidebar({ expanded, onToggle }: Props) {
       {/* Brand logo */}
       <div
         className={[
-          "flex items-center h-14 border-b border-white/8 shrink-0 transition-all",
+          "flex items-center h-14 border-b border-white/8 shrink-0 transition-[padding,gap] duration-150",
           expanded ? "px-4 gap-3" : "justify-center",
         ].join(" ")}
       >
@@ -60,7 +60,7 @@ export function Sidebar({ expanded, onToggle }: Props) {
           type="button"
           onClick={onToggle}
           aria-label={expanded ? "Contraer menú" : "Expandir menú"}
-          className="w-full flex items-center justify-center py-2 rounded-lg text-white/25 hover:text-white/55 hover:bg-white/5 transition-all duration-150"
+          className="w-full flex items-center justify-center py-2 rounded-lg text-white/25 hover:text-white/55 hover:bg-white/5 transition-colors duration-150"
         >
           {expanded
             ? <ChevronLeft  className="w-4 h-4" aria-hidden="true" />

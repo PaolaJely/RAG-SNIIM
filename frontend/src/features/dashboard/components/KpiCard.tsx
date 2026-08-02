@@ -30,7 +30,7 @@ export const KpiCard = memo(function KpiCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, delay, ease: "easeOut" }}
-      className="bg-surface-raised rounded-xl border border-border p-5 hover:shadow-sm transition-all duration-200"
+      className="bg-surface-raised rounded-xl border border-border p-5 hover:shadow-sm transition-shadow duration-200"
     >
       <div className="flex items-center justify-between mb-4">
         <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">

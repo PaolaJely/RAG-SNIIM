@@ -45,7 +45,7 @@ export function ChatInput({ value, onChange, onSend, sending, showChips = false 
                 key={c.text}
                 onClick={() => onSend(c.text)}
                 disabled={sending}
-                className="flex items-center gap-1.5 h-7 px-3 rounded-full border border-border bg-surface-raised text-xs text-muted-foreground hover:text-foreground hover:border-brand/30 transition-all disabled:opacity-40"
+                className="flex items-center gap-1.5 h-7 px-3 rounded-full border border-border bg-surface-raised text-xs text-muted-foreground hover:text-foreground hover:border-brand/30 transition-colors disabled:opacity-40"
               >
                 <c.icon className="w-3 h-3" aria-hidden="true" />
                 <span>{c.label}</span>
@@ -56,7 +56,7 @@ export function ChatInput({ value, onChange, onSend, sending, showChips = false 
 
         <div
           className={[
-            "flex items-end gap-2 rounded-2xl border bg-surface-raised px-3 py-2.5 shadow-sm transition-all duration-150",
+            "flex items-end gap-2 rounded-2xl border bg-surface-raised px-3 py-2.5 shadow-sm transition-colors duration-150",
             sending ? "border-border opacity-75" : "border-border hover:border-brand/30 focus-within:border-brand/50 focus-within:ring-1 focus-within:ring-brand/15",
           ].join(" ")}
         >
@@ -81,7 +81,7 @@ export function ChatInput({ value, onChange, onSend, sending, showChips = false 
             disabled={!canSend}
             aria-label="Enviar mensaje"
             className={[
-              "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-150",
+              "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors duration-150",
               canSend
                 ? "bg-brand text-brand-foreground hover:bg-brand-light shadow-sm"
                 : "bg-muted text-muted-foreground cursor-not-allowed",

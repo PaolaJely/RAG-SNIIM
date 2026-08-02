@@ -1,5 +1,5 @@
 import { Check, ChevronDown, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useFetch } from "../../lib/useFetch";
 import { getMarketsMinimal } from "../../services/marketService";
@@ -10,8 +10,12 @@ export function DestinationFilter() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
-  const { data: markets } = useFetch(
+  const fetchMarkets = useCallback(
     () => getMarketsMinimal(undefined, source),
+    [source],
+  );
+  const { data: markets } = useFetch(
+    fetchMarkets,
     [source],
     `markets:minimal:${source}`,
   );
@@ -27,6 +31,7 @@ export function DestinationFilter() {
       ),
     [names, search],
   );
+  const selectedDestinos = useMemo(() => new Set(destinos), [destinos]);
 
   useEffect(() => {
     const closeOnOutsideClick = (event: MouseEvent) => {
@@ -54,7 +59,7 @@ export function DestinationFilter() {
         aria-expanded={open}
         aria-label="Seleccionar mercados para comparar"
         className={[
-          "flex h-8 max-w-[130px] items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-all duration-150 sm:max-w-[220px]",
+          "flex h-8 max-w-[130px] items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors duration-150 sm:max-w-[220px]",
           "bg-surface-raised text-foreground/75 hover:text-foreground",
           open
             ? "border-brand/40 text-foreground ring-1 ring-brand/15"
@@ -117,7 +122,7 @@ export function DestinationFilter() {
               aria-multiselectable="true"
             >
               {filtered.map((name) => {
-                const selected = destinos.includes(name);
+                const selected = selectedDestinos.has(name);
                 return (
                   <li key={name}>
                     <button

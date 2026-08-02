@@ -47,3 +47,7 @@ services:
         value: "32"
       - key: SIMILARITY_THRESHOLD
         value: "0.35"
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: IMPORT_ADMIN_TOKEN
+        sync: false

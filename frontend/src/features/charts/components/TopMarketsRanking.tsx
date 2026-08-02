@@ -81,7 +81,7 @@ export function TopMarketsRanking() {
                 </div>
                 <div className="flex-1 bg-muted rounded-md h-7 overflow-hidden">
                   <div
-                    className="h-full flex items-center justify-end pr-2.5 rounded-md transition-all duration-500 ease-out"
+                    className="h-full flex items-center justify-end pr-2.5 rounded-md transition-[width] duration-500 ease-out"
                     style={{ width: `${Math.max(widthPct, 12)}%`, backgroundColor: colors.bar }}
                     aria-label={`${market.nombre}: ${formatPriceShort(market.precio_promedio)}/${unit}`}
                   >

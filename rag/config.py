@@ -42,3 +42,11 @@ DEEPSEEK_THINKING_MODE = os.getenv("DEEPSEEK_THINKING_MODE", "disabled").lower()
 # ── RAG ────────────────────────────────────────────────
 SEARCH_K             = int(os.getenv("SEARCH_K", "16"))
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.2"))
+
+# ── API / despliegue ──────────────────────────────────
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "*").split(",")
+    if origin.strip()
+]
+IMPORT_ADMIN_TOKEN = os.getenv("IMPORT_ADMIN_TOKEN", "")

@@ -87,7 +87,7 @@ function ActiveNavItem({
       aria-label={label}
       className={({ isActive }) =>
         [
-          "group relative flex items-center rounded-lg transition-all duration-150 text-sm",
+          "group relative flex items-center rounded-lg transition-colors duration-150 text-sm",
           expanded ? "gap-3 px-3 py-2" : "justify-center py-2.5",
           isActive
             ? "bg-white/10 text-white"

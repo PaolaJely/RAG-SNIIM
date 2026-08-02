@@ -33,7 +33,7 @@ export const MercadoCard = memo(function MercadoCard({ market, index, globalMin,
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22, delay: Math.min(index * 0.03, 0.3) }}
-      className="bg-surface-raised rounded-xl border border-border p-5 hover:shadow-sm hover:border-border/60 transition-all duration-200"
+      className="bg-surface-raised rounded-xl border border-border p-5 hover:shadow-sm hover:border-border/60 transition-[border-color,box-shadow] duration-200"
       aria-label={`Mercado ${market.nombre}`}
     >
       <div className="flex items-start gap-2 mb-4">
@@ -55,7 +55,7 @@ export const MercadoCard = memo(function MercadoCard({ market, index, globalMin,
           aria-label={`Precio relativo: ${Math.round(relativePos * 100)}% del rango nacional`}
         >
           <div
-            className={`h-1.5 rounded-full transition-all duration-500 ${barColor}`}
+            className={`h-1.5 rounded-full transition-[width] duration-500 ${barColor}`}
             style={{ width: `${barWidth}%` }}
             aria-hidden="true"
           />

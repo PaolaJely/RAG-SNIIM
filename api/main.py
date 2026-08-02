@@ -11,7 +11,7 @@ import time
 import threading
 import psycopg2
 import psycopg2.extras
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import config
@@ -35,7 +35,7 @@ app = FastAPI(title="SNIIM API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -64,6 +64,16 @@ _cache_ts: float = 0.0
 _CACHE_TTL = 10 * 60  # 10 minutos
 MAX_IMPORT_FILE_SIZE = 10 * 1024 * 1024
 DataSource = Literal["sniim", "local", "all"]
+
+
+def _require_import_admin_token(
+    x_import_admin_token: str | None = Header(default=None),
+) -> None:
+    """Protege las rutas administrativas de importación cuando hay token configurado."""
+    if not config.IMPORT_ADMIN_TOKEN:
+        return
+    if x_import_admin_token != config.IMPORT_ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="Token de importación inválido.")
 
 
 def _get_pg() -> psycopg2.extensions.connection:
@@ -233,8 +243,10 @@ async def preview_import(
     municipality: Optional[str] = Form(None),
     currency: str = Form("MXN"),
     package_weight_kg: Optional[float] = Form(None),
+    x_import_admin_token: str | None = Header(default=None),
 ):
     """Analiza y normaliza un Excel/CSV sin guardar registros en Neon."""
+    _require_import_admin_token(x_import_admin_token)
     filename = file.filename or "archivo"
     suffix = Path(filename).suffix.lower()
     if suffix not in {".xlsx", ".csv"}:
@@ -280,8 +292,10 @@ async def analyze_import(
     municipality: Optional[str] = Form(None),
     currency: str = Form("MXN"),
     package_weight_kg: Optional[float] = Form(None),
+    x_import_admin_token: str | None = Header(default=None),
 ):
     """Analiza el archivo y persiste el resultado en staging de Neon."""
+    _require_import_admin_token(x_import_admin_token)
     filename = file.filename or "archivo"
     suffix = Path(filename).suffix.lower()
     if suffix not in {".xlsx", ".csv"}:
@@ -346,7 +360,9 @@ class ApproveImportRequest(BaseModel):
 @app.get("/api/imports")
 def get_imports(
     limit: int = Query(20, ge=1, le=100),
+    x_import_admin_token: str | None = Header(default=None),
 ):
+    _require_import_admin_token(x_import_admin_token)
     ensure_import_schema()
     return list_import_batches(limit)
 
@@ -354,7 +370,9 @@ def get_imports(
 @app.get("/api/imports/{batch_id}")
 def get_import(
     batch_id: int,
+    x_import_admin_token: str | None = Header(default=None),
 ):
+    _require_import_admin_token(x_import_admin_token)
     ensure_import_schema()
     batch = get_import_batch(batch_id)
     if not batch:
@@ -366,7 +384,9 @@ def get_import(
 def approve_import(
     batch_id: int,
     body: ApproveImportRequest,
+    x_import_admin_token: str | None = Header(default=None),
 ):
+    _require_import_admin_token(x_import_admin_token)
     ensure_import_schema()
     try:
         return approve_import_batch(batch_id, body.exclude_errors)

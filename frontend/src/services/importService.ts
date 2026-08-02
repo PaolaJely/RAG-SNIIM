@@ -8,6 +8,7 @@ import type {
 export async function analyzeImport(
   file: File,
   metadata: ImportFormMetadata,
+  adminToken: string,
 ): Promise<ImportPreview> {
   const form = new FormData();
   form.append("file", file);
@@ -24,6 +25,9 @@ export async function analyzeImport(
 
   const response = await fetch(`${API_BASE}/api/imports/analyze`, {
     method: "POST",
+    headers: {
+      "x-import-admin-token": adminToken,
+    },
     body: form,
   });
   if (!response.ok) {
@@ -36,11 +40,13 @@ export async function analyzeImport(
 export async function approveImport(
   batchId: number,
   excludeErrors: boolean,
+  adminToken: string,
 ): Promise<ImportApproval> {
   const response = await fetch(`${API_BASE}/api/imports/${batchId}/approve`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "x-import-admin-token": adminToken,
     },
     body: JSON.stringify({ exclude_errors: excludeErrors }),
   });

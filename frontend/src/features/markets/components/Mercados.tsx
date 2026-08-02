@@ -51,7 +51,7 @@ export function Mercados() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           aria-label="Buscar mercado"
-          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-surface-raised text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand/30 focus:border-brand/40 transition-all"
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-surface-raised text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand/30 focus:border-brand/40 transition-colors"
         />
       </div>
 

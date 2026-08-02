@@ -48,7 +48,7 @@ export function ChatIA() {
           onClick={openDrawer}
           aria-label="Ver documentos recuperados"
           className={[
-            "flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium transition-all",
+            "flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium transition-colors",
             activeDocs.length > 0
               ? "text-brand bg-brand-muted/50 hover:bg-brand-muted"
               : "text-muted-foreground hover:bg-muted hover:text-foreground",

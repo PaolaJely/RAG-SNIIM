@@ -26,7 +26,7 @@ export const GranularityToggle = memo(function GranularityToggle({ value, onChan
           onClick={() => onChange(opt.value)}
           aria-pressed={value === opt.value}
           className={[
-            "px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150",
+            "px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150",
             value === opt.value
               ? "bg-surface-raised text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",

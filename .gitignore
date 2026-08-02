@@ -17,3 +17,7 @@ frontend/.vercel/
 
 # Datos generados
 data/platano_tabasco.json
+
+# Carpetas locales fuera del repo
+docs/
+aaa/

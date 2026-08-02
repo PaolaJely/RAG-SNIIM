@@ -14,6 +14,11 @@ class QueryRouterTests(unittest.TestCase):
         examples = [
             "Cual fue el precio promedio en 2025?",
             "Que mercado tuvo el precio mas alto?",
+            "Cual es el mercado mas caro?",
+            "Cual es el mercado mas barato?",
+            "Cuantos mercados tienes?",
+            "Cuantos registros tienes?",
+            "Dame un resumen general de los datos.",
             "Cual fue el precio minimo registrado?",
             "Dame un ranking de mercados por precio promedio.",
             "Cual fue la tendencia mensual?",
@@ -44,6 +49,7 @@ class QueryRouterTests(unittest.TestCase):
         examples = [
             "Compara Monterrey y CDMX y dime cual tuvo mejor comportamiento.",
             "Analiza la tendencia de Villahermosa y explica que significa.",
+            "Por que Baja California es el mercado mas caro?",
         ]
 
         for question in examples:

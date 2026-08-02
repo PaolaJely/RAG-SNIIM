@@ -3,19 +3,8 @@ import type { DataSource } from "../stores/filterStore";
 import type {
   CandlestickPrice,
   HeatmapData,
-  MonthlyPrice,
   PriceGranularity,
 } from "../types/prices";
-
-export function getMonthlyPrices(
-  destinos?: string[],
-  source: DataSource = "sniim",
-): Promise<MonthlyPrice[]> {
-  return fetchJson<MonthlyPrice[]>(
-    "/api/precios/mensual",
-    dashboardParams(destinos, source),
-  );
-}
 
 export function getPriceHeatmap(
   destinos?: string[],

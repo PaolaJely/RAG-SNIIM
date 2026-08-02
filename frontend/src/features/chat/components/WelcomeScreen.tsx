@@ -54,7 +54,7 @@ export function WelcomeScreen({ onSuggest }: Props) {
             type="button"
             key={s.text}
             onClick={() => onSuggest(s.text)}
-            className="group text-left rounded-xl border border-border bg-surface-raised p-4 hover:border-brand/40 hover:bg-surface hover:shadow-sm transition-all duration-200"
+            className="group text-left rounded-xl border border-border bg-surface-raised p-4 hover:border-brand/40 hover:bg-surface hover:shadow-sm transition-[border-color,background-color,box-shadow] duration-200"
           >
             <s.icon
               className="w-4 h-4 text-muted-foreground group-hover:text-brand mb-2.5 transition-colors"

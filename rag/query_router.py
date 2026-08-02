@@ -3,11 +3,26 @@ import unicodedata
 
 
 ANALYTIC_PATTERNS = [
+    "cuanto",
+    "cuanta",
+    "cuantos",
+    "cuantas",
+    "conteo",
+    "total de",
+    "resumen general",
+    "datos tienes",
+    "que mercados",
+    "cuales mercados",
     "promedio",
     "maximo",
     "minimo",
     "precio mas alto",
     "precio mas bajo",
+    "mas caro",
+    "mas barata",
+    "mas barato",
+    "menor precio",
+    "mayor precio",
     "ranking",
     "tendencia",
     "evolucion",
@@ -18,6 +33,9 @@ ANALYTIC_PATTERNS = [
 ]
 
 HYBRID_PATTERNS = [
+    "por que",
+    "porque",
+    "a que se debe",
     "compara",
     "comparar",
     "comparacion",

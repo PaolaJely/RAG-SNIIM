@@ -6,6 +6,11 @@ allowBuilds:
   esbuild: true
 
 minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - react-router@8.3.0
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - semver@6.3.1
 
 overrides:
   vite: 6.3.5
