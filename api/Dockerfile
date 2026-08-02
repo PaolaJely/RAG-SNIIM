@@ -5,9 +5,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Dependencias del sistema para psycopg2
+# Dependencias del sistema: psycopg2 + Node.js para el scraper Stagehand
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 COPY api/requirements.txt api/requirements.txt
@@ -15,6 +18,9 @@ RUN pip install --no-cache-dir -r api/requirements.txt
 
 COPY rag/ rag/
 COPY api/ api/
+COPY scraper/ scraper/
+
+RUN cd /app/scraper/stagehand && npm install
 
 ENV PYTHONUNBUFFERED=1
 
