@@ -1,5 +1,6 @@
 # Entorno
 .env
+**/.env
 
 # Python
 __pycache__/
@@ -16,4 +17,6 @@ frontend/dist/
 frontend/.vercel/
 
 # Datos generados
-data/platano_tabasco.json
+scraper/data/platano_tabasco.json
+scraper/data/results.json
+desktop.ini

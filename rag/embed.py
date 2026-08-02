@@ -21,6 +21,9 @@ from qdrant_client.models import (
 from embeddings_factory import embeddings
 from qdrant_client_factory import get_qdrant_client
 
+import re
+from datetime import date
+
 # ── Conexiones ─────────────────────────────────────────
 qdrant = get_qdrant_client()
 
@@ -226,6 +229,30 @@ def ensure_qdrant_payload_indexes() -> None:
     )
 
 
+def parse_precio(price_str: str) -> float:
+    """Extrae el primer precio numérico del texto."""
+    numeros = re.findall(r"[\d]+(?:[.,]\d+)?", price_str.replace(",", ""))
+    return float(numeros[0]) if numeros else 0.0
+
+def convertir_stagehand(data: list[dict]) -> list[dict]:
+    """
+    Convierte el JSON de Stagehand al formato que espera embed.py.
+    """
+    hoy = date.today().strftime("%d/%m/%Y")
+    resultado = []
+    for item in data:
+        resultado.append({
+            "Fecha":        hoy,
+            "Origen":       item.get("marketplace", "Tienda en línea"),
+            "Destino":      item.get("marketplace", "Tienda en línea"),
+            "Presentación": "Kilogramo",
+            "Precio Mín":   str(parse_precio(item.get("price", "0"))),
+            "Precio Max":   str(parse_precio(item.get("price", "0"))),
+            "Precio Frec":  str(parse_precio(item.get("price", "0"))),
+            "Obs.":         item.get("productName", ""),
+        })
+    return resultado
+
 def index_file(
     json_path: Path,
     producto_id: str = "732",
@@ -240,6 +267,9 @@ def index_file(
     """
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
+        if data and "productName" in data[0]:
+            data = convertir_stagehand(data)
+
 
     total = len(data)
     print(f"📦 Total registros: {total} — archivo: {json_path.name}")
@@ -394,7 +424,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--json",
         type=Path,
-        default=config.DATA_DIR / "platano_tabasco.json",
+        default=config.DATA_DIR / "results.json",
         help="Ruta del JSON generado por el scraper.",
     )
     parser.add_argument(

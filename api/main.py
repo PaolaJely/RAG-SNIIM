@@ -1,5 +1,7 @@
 import sys
 from pathlib import Path
+import subprocess
+from pathlib import Path
 
 # Permite importar desde rag/
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "rag"))
@@ -657,3 +659,42 @@ def post_chat(body: ChatRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/actualizar")
+async def actualizar_datos():
+    """
+    Dispara el scraper de Stagehand y luego indexa los datos
+    en PostgreSQL y Qdrant.
+    """
+    base = Path(__file__).resolve().parent.parent
+
+    # 1. Correr el scraper de Stagehand
+    scraper_dir = base / "scraper" / "stagehand"
+    resultado_scraper = subprocess.run(
+        ["node", "index.js"],
+        cwd=scraper_dir,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if resultado_scraper.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en scraper: {resultado_scraper.stderr}"
+        )
+
+    # 2. Correr embed.py para indexar en PostgreSQL y Qdrant
+    resultado_embed = subprocess.run(
+        ["python", "embed.py", "--json", str(base / "scraper" / "data" / "results.json")],
+        cwd=base / "rag",
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    if resultado_embed.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en indexación: {resultado_embed.stderr}"
+        )
+
+    return {"status": "ok", "detalle": resultado_embed.stdout}

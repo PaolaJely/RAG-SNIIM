@@ -51,7 +51,7 @@ async function main() {
 
   // Guardar resultados en un archivo JSON
   await writeFile(
-    "results.json",
+    "../data/results.json",
     JSON.stringify(results, null, 2),
     "utf-8"
   );

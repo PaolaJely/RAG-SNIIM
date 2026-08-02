@@ -6,7 +6,7 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env")
 
 # ── Paths ──────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = BASE_DIR / "scraper" / "data"
 
 # ── Qdrant ─────────────────────────────────────────────
 QDRANT_HOST       = os.getenv("QDRANT_HOST", "localhost")
