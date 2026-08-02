@@ -3,8 +3,6 @@
 .env
 *.md
 frontend/
-scraper/
-stagehand/
 data/
 __pycache__
 *.pyc
