@@ -706,17 +706,14 @@ async def limpiar_vectores_viejos():
         points_selector=Filter(
             must=[
                 FieldCondition(
-                    key="origen",
-                    match=MatchAny(any=[
-                        "Tienda en línea - Hiperabasto",
-                        "Tienda en línea - La Gran Bodega",
-                        "Tienda en línea - Convy",
-                        "Hiperabasto",
-                        "La Gran Bodega",
-                        "Convy",
-                    ])
-                )
+                    key="anio",
+                    match=MatchAny(any=["2026"])
+                ),
+                FieldCondition(
+                    key="mes",
+                    match=MatchAny(any=["08"])
+                ),
             ]
         )
     )
-    return {"status": "ok", "detalle": "Vectores viejos eliminados"}
+    return {"status": "ok", "detalle": "Vectores de agosto 2026 eliminados"}
