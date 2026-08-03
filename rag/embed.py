@@ -243,13 +243,13 @@ def convertir_stagehand(data: list[dict]) -> list[dict]:
     for item in data:
         resultado.append({
             "Fecha":        hoy,
-            "Origen":       item.get("marketplace", "Tienda en línea"),
-            "Destino":      item.get("marketplace", "Tienda en línea"),
+            "Origen": f"Tienda en línea - {item.get('marketplace', '')}",
+            "Destino": f"Mercado en línea plátano Tabasco - {item.get('marketplace', '')}",
             "Presentación": "Kilogramo",
             "Precio Mín":   str(parse_precio(item.get("price", "0"))),
             "Precio Max":   str(parse_precio(item.get("price", "0"))),
             "Precio Frec":  str(parse_precio(item.get("price", "0"))),
-            "Obs.":         item.get("productName", ""),
+            "Obs.": f"Precio de {item.get('productName', 'plátano Tabasco')} en tienda en línea {item.get('marketplace', '')}",
         })
     return resultado
 
