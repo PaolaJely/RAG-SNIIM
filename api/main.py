@@ -695,3 +695,28 @@ def correr_actualizacion():
         print(f"Error en indexación: {resultado_embed.stderr}")
         return
     print(resultado_embed.stdout)
+
+@app.delete("/api/limpiar-vectores-viejos")
+async def limpiar_vectores_viejos():
+    from qdrant_client_factory import get_qdrant_client
+    from qdrant_client.models import Filter, FieldCondition, MatchAny
+    qdrant = get_qdrant_client()
+    qdrant.delete(
+        collection_name=config.QDRANT_COLLECTION,
+        points_selector=Filter(
+            must=[
+                FieldCondition(
+                    key="origen",
+                    match=MatchAny(any=[
+                        "Tienda en línea - Hiperabasto",
+                        "Tienda en línea - La Gran Bodega",
+                        "Tienda en línea - Convy",
+                        "Hiperabasto",
+                        "La Gran Bodega",
+                        "Convy",
+                    ])
+                )
+            ]
+        )
+    )
+    return {"status": "ok", "detalle": "Vectores viejos eliminados"}
