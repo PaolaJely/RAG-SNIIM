@@ -20,7 +20,9 @@ COPY rag/ rag/
 COPY api/ api/
 COPY scraper/ scraper/
 
+# Instalar dependencias de Stagehand y crear carpeta de datos
 RUN cd /app/scraper/stagehand && npm install
+RUN mkdir -p /app/scraper/data
 
 ENV PYTHONUNBUFFERED=1
 
@@ -28,4 +30,4 @@ WORKDIR /app/api
 
 EXPOSE 8000
 
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} 
