@@ -13,7 +13,7 @@ import time
 import threading
 import psycopg2
 import psycopg2.extras
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import config
@@ -32,6 +32,8 @@ from normalization_agent import (
     csv_source_key,
     suggest_csv_mapping,
 )
+
+
 
 app = FastAPI(title="SNIIM API", version="1.0.0")
 
@@ -661,14 +663,16 @@ def post_chat(body: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/actualizar")
-async def actualizar_datos():
+async def actualizar_datos(background_tasks: BackgroundTasks):
     """
     Dispara el scraper de Stagehand y luego indexa los datos
-    en PostgreSQL y Qdrant.
+    en PostgreSQL y Qdrant en segundo plano.
     """
-    base = Path(__file__).resolve().parent.parent
+    background_tasks.add_task(correr_actualizacion)
+    return {"status": "iniciado", "detalle": "Actualización en proceso, los datos estarán disponibles en 1-2 minutos."}
 
-    # 1. Correr el scraper de Stagehand
+def correr_actualizacion():
+    base = Path(__file__).resolve().parent.parent
     scraper_dir = base / "scraper" / "stagehand"
     resultado_scraper = subprocess.run(
         ["node", "index.js"],
@@ -678,12 +682,8 @@ async def actualizar_datos():
         timeout=120,
     )
     if resultado_scraper.returncode != 0:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error en scraper: {resultado_scraper.stderr}"
-        )
-
-    # 2. Correr embed.py para indexar en PostgreSQL y Qdrant
+        print(f"Error en scraper: {resultado_scraper.stderr}")
+        return
     resultado_embed = subprocess.run(
         ["python", "embed.py", "--json", str(base / "scraper" / "data" / "results.json")],
         cwd=base / "rag",
@@ -692,9 +692,6 @@ async def actualizar_datos():
         timeout=300,
     )
     if resultado_embed.returncode != 0:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error en indexación: {resultado_embed.stderr}"
-        )
-
-    return {"status": "ok", "detalle": resultado_embed.stdout}
+        print(f"Error en indexación: {resultado_embed.stderr}")
+        return
+    print(resultado_embed.stdout)
