@@ -17,7 +17,7 @@ export function DashboardHeader() {
 
   async function handleActualizar() {
     setCargando(true);
-    setMensaje(null);
+    setMensaje("");
     try {
       await postJson("/api/actualizar", {});
       setMensaje("Datos actualizados correctamente.");
