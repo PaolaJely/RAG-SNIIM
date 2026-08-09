@@ -4,6 +4,7 @@ packages:
 allowBuilds:
   '@tailwindcss/oxide': true
   esbuild: true
+  workerd: true
 
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
@@ -18,3 +19,4 @@ overrides:
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'
   - esbuild
+  - workerd
