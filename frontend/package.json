@@ -6,11 +6,9 @@
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev": "vite --host",
-    "dev:tunnel": "vite --host",
-    "tunnel": "bash scripts/tunnel.sh",
     "build": "vite build",
-    "deploy:cf": "pnpm build && pnpm dlx wrangler pages deploy",
-    "deploy:cf:preview": "pnpm build && pnpm dlx wrangler pages deploy --branch preview",
+    "deploy:netlify": "pnpm build && pnpm dlx netlify-cli deploy --prod --dir=dist",
+    "deploy:netlify:preview": "pnpm build && pnpm dlx netlify-cli deploy --dir=dist",
     "preview": "vite preview",
     "doctor": "react-doctor .",
     "doctor:verbose": "react-doctor . --verbose"

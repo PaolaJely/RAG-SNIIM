@@ -1,0 +1,12 @@
+[build]
+  base = "frontend"
+  command = "pnpm run build"
+  publish = "dist"
+
+[build.environment]
+  PNPM_VERSION = "11.9.0"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

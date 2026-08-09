@@ -79,7 +79,7 @@ cp .env.example .env
 
 ### Deploy en producción (gratuito)
 
-Para publicar con **Qdrant Cloud**, **Neon**, **Render** y **Cloudflare Pages**, sigue la guía paso a paso:
+Para publicar con **Qdrant Cloud**, **Neon**, **Render** y **Netlify**, sigue la guía paso a paso:
 
 **[docs/DEPLOY.md](docs/DEPLOY.md)**
 
