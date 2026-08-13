@@ -1,6 +1,8 @@
 import re
 import unicodedata
 import json
+from collections import Counter, defaultdict
+from datetime import datetime
 from typing import Any
 
 import psycopg2
@@ -16,6 +18,21 @@ from query_filters import build_query_filters, strip_client_metadata
 
 DEFAULT_PRODUCTO_ID = "732"
 DEFAULT_LIMIT = 10
+
+MONTH_NAMES = {
+    "01": "Enero",
+    "02": "Febrero",
+    "03": "Marzo",
+    "04": "Abril",
+    "05": "Mayo",
+    "06": "Junio",
+    "07": "Julio",
+    "08": "Agosto",
+    "09": "Septiembre",
+    "10": "Octubre",
+    "11": "Noviembre",
+    "12": "Diciembre",
+}
 
 KG_FACTOR_SQL = """
 CASE
@@ -327,6 +344,44 @@ def get_average_price(
         [producto_id, *year_params, *market_params],
     )
     return row or {}
+
+
+def get_market_price_records(
+    year: str | None = None,
+    producto_id: str = DEFAULT_PRODUCTO_ID,
+    market_terms: list[str] | None = None,
+) -> list[dict]:
+    year_filter, year_params = _where_year(year)
+    market_filter, market_params = _where_destino_terms(market_terms or [])
+    if not market_filter:
+        return []
+
+    return _fetch_all(
+        f"""
+        {PRODUCTO_NORMALIZADO_CTE}
+        SELECT
+            fecha,
+            TO_DATE(fecha, 'DD/MM/YYYY') AS fecha_dt,
+            origen,
+            destino,
+            presentacion,
+            precio_min_consulta AS precio_min,
+            precio_max_consulta AS precio_max,
+            precio_frec_consulta AS precio_frec,
+            precio_min_original,
+            precio_max_original,
+            precio_frec_original,
+            unidad_consulta AS unidad,
+            factor_conversion,
+            obs
+        FROM producto_norm
+        WHERE precio_frec_consulta IS NOT NULL
+          {year_filter}
+          {market_filter}
+        ORDER BY TO_DATE(fecha, 'DD/MM/YYYY')
+        """,
+        [producto_id, *year_params, *market_params],
+    )
 
 
 def get_max_price(
@@ -857,6 +912,155 @@ def _unit_label(row: dict) -> str:
     return ""
 
 
+def _format_money(value: Any) -> str:
+    return f"{float(value):.2f}"
+
+
+def _format_presentation(value: str | None) -> str:
+    return (value or "presentación no especificada").strip().rstrip(".")
+
+
+def _format_destination(value: str | None) -> str:
+    destination = (value or "destino no especificado").strip()
+    return re.sub(r"\s+:", ":", destination)
+
+
+def _parse_fecha(fecha: str):
+    try:
+        return datetime.strptime(fecha, "%d/%m/%Y")
+    except (TypeError, ValueError):
+        return None
+
+
+def _most_common_value(values: list[Any]) -> Any:
+    clean = [value for value in values if value not in (None, "")]
+    if not clean:
+        return None
+    return Counter(clean).most_common(1)[0][0]
+
+
+def _date_examples(rows: list[dict], limit: int = 4) -> str:
+    dates = [row["fecha"] for row in rows if row.get("fecha")]
+    return ", ".join(dates[:limit])
+
+
+def _period_label(rows: list[dict]) -> str:
+    dates = [_parse_fecha(row.get("fecha")) for row in rows]
+    dates = [date for date in dates if date]
+    if not dates:
+        return "periodo disponible"
+    start = min(dates)
+    end = max(dates)
+    if start.year == end.year:
+        if start.month == end.month:
+            return f"{MONTH_NAMES[start.strftime('%m')]} {start.year}"
+        return f"{MONTH_NAMES[start.strftime('%m')]} a {MONTH_NAMES[end.strftime('%m')]} {start.year}"
+    return f"{MONTH_NAMES[start.strftime('%m')]} {start.year} a {MONTH_NAMES[end.strftime('%m')]} {end.year}"
+
+
+def _monthly_detail_lines(rows: list[dict], unit: str, mode_price: float) -> list[str]:
+    grouped: dict[tuple[int, int], list[dict]] = defaultdict(list)
+    for row in rows:
+        date = _parse_fecha(row.get("fecha"))
+        if date:
+            grouped[(date.year, date.month)].append(row)
+
+    lines: list[str] = []
+    for year, month in sorted(grouped):
+        month_rows = grouped[(year, month)]
+        frec_values = [row["precio_frec"] for row in month_rows if row.get("precio_frec") is not None]
+        min_value = min(frec_values)
+        max_value = max(frec_values)
+        mode_count = sum(1 for value in frec_values if value == mode_price)
+        examples = _date_examples(
+            [row for row in month_rows if row.get("precio_frec") == mode_price],
+            limit=3,
+        )
+        if min_value == max_value:
+            detail = f"precio frecuente de **{_format_money(min_value)} {unit}**"
+        else:
+            detail = (
+                f"rango de precio frecuente de **{_format_money(min_value)} a "
+                f"{_format_money(max_value)} {unit}**"
+            )
+        if mode_count:
+            detail += f"; **{_format_money(mode_price)} {unit}** aparece en {mode_count} registros"
+            if examples:
+                detail += f" (ej. {examples})"
+        lines.append(f"- **{MONTH_NAMES[f'{month:02d}']} {year}:** {detail}.")
+    return lines
+
+
+def format_market_price_summary(rows: list[dict], requested_year: str | None = None) -> str:
+    if not rows:
+        period = f" en {requested_year}" if requested_year else ""
+        return f"No hay datos suficientes en Postgres para responder la consulta{period}."
+
+    destino = _format_destination(_most_common_value([row.get("destino") for row in rows]))
+    origen = _most_common_value([row.get("origen") for row in rows]) or "origen no especificado"
+    presentacion = _format_presentation(_most_common_value([row.get("presentacion") for row in rows]))
+    unit_values = [row.get("unidad") for row in rows if row.get("unidad")]
+    unit = "MXN/kg" if unit_values and all(value == "MXN/kg" for value in unit_values) else "unidad mixta"
+
+    min_row = min(rows, key=lambda row: (row.get("precio_min") is None, row.get("precio_min") or 0))
+    max_row = max(rows, key=lambda row: (row.get("precio_max") is not None, row.get("precio_max") or 0))
+    frec_values = [row["precio_frec"] for row in rows if row.get("precio_frec") is not None]
+    mode_price, mode_count = Counter(frec_values).most_common(1)[0]
+    mode_rows = [row for row in rows if row.get("precio_frec") == mode_price]
+    mode_row = mode_rows[0]
+    average_price = round(sum(frec_values) / len(frec_values), 2)
+
+    original_mode = mode_row.get("precio_frec_original")
+    factor = mode_row.get("factor_conversion")
+    original_note = ""
+    if original_mode is not None and factor and float(factor) != 1.0:
+        original_note = (
+            f" ({presentacion.lower()} = {_format_money(original_mode)} MXN)"
+        )
+
+    max_rows = [row for row in rows if row.get("precio_max") == max_row.get("precio_max")]
+    max_dates = _date_examples(max_rows, limit=5)
+    mode_examples = _date_examples(mode_rows, limit=4)
+    period_label = _period_label(rows)
+
+    if unit == "MXN/kg":
+        unit_sentence = (
+            "Todos los registros tienen unidad normalizada **MXN/kg**, "
+            "por lo que los precios principales se expresan en esa unidad."
+        )
+    else:
+        unit_sentence = (
+            "Los registros mezclan unidades convertibles a **MXN/kg** y precios en "
+            "presentación original; revisa la unidad indicada en cada métrica."
+        )
+
+    monthly_lines = "\n".join(_monthly_detail_lines(rows, unit, mode_price))
+
+    return (
+        f"Con los datos disponibles, el precio del plátano en el mercado de "
+        f"**{destino}** (destino) proviene de **{origen}** (origen), en "
+        f"presentación de **{presentacion}**. {unit_sentence}\n\n"
+        f"- **Rango completo ({period_label}):** precio mínimo de "
+        f"**{_format_money(min_row['precio_min'])} {unit}** ({min_row['fecha']}) "
+        f"y máximo de **{_format_money(max_row['precio_max'])} {unit}** "
+        f"({max_dates}).\n"
+        f"- **Precio más frecuente (moda):** **{_format_money(mode_price)} {unit}**"
+        f"{original_note}, presente en {mode_count} de {len(rows)} registros"
+        f"{f' (ej. {mode_examples})' if mode_examples else ''}.\n"
+        f"- **Precio promedio (calculado de los registros):** aproximadamente "
+        f"**{_format_money(average_price)} {unit}** (considerando todos los datos).\n\n"
+        f"**Detalles cronológicos clave:**\n"
+        f"{monthly_lines}\n\n"
+        f"**Conclusión:** El precio más representativo del plátano tabasqueño en "
+        f"**{destino}** es de **{_format_money(mode_price)} {unit}**"
+        f"{original_note}, con variaciones observadas que van de "
+        f"**{_format_money(min_row['precio_min'])} a {_format_money(max_row['precio_max'])} {unit}**. "
+        f"Para el periodo más reciente disponible en estos registros "
+        f"({_period_label([rows[-1]])}), el valor esperado es cercano a "
+        f"**{_format_money(rows[-1]['precio_frec'])} {unit}**."
+    )
+
+
 def _synthesize_sql_answer(
     question: str,
     operation: str,
@@ -900,6 +1104,41 @@ def answer_analytic_question(
         market_terms = infer_market_terms_from_question(question, producto_id=producto_id)
 
     if operation == "average_price":
+        if market_terms:
+            rows = get_market_price_records(
+                year=year,
+                producto_id=producto_id,
+                market_terms=market_terms,
+            )
+            used_fallback_period = False
+            if not rows and year:
+                rows = get_market_price_records(
+                    year=None,
+                    producto_id=producto_id,
+                    market_terms=market_terms,
+                )
+                used_fallback_period = bool(rows)
+            answer = format_market_price_summary(rows, requested_year=year)
+            if used_fallback_period:
+                answer = (
+                    f"No encontré registros para ese mercado en {year}. "
+                    f"Te muestro el periodo disponible más cercano en la base.\n\n"
+                    f"{answer}"
+                )
+            return {
+                "respuesta": answer,
+                "documentos": [
+                    {
+                        "source": "postgres",
+                        "type": "sql_result",
+                        "operation": "market_price_summary",
+                        "year": year,
+                        "markets": market_terms,
+                        "rows": rows,
+                    }
+                ],
+                "tokens": None,
+            }
         result = get_average_price(
             year=year,
             producto_id=producto_id,
