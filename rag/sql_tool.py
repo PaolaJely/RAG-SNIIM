@@ -184,6 +184,120 @@ def _where_destino_terms(terms: list[str]) -> tuple[str, list[Any]]:
     return f"AND ({' OR '.join(clauses)})", [_like_pattern(term) for term in terms]
 
 
+_MARKET_MATCH_STOPWORDS = {
+    "cual",
+    "cuanto",
+    "cuanta",
+    "cuantos",
+    "cuantas",
+    "precio",
+    "precios",
+    "mercado",
+    "mercados",
+    "central",
+    "abasto",
+    "abastos",
+    "producto",
+    "platano",
+    "tabasco",
+    "para",
+    "desde",
+    "donde",
+    "tienes",
+    "tener",
+    "actual",
+    "promedio",
+    "frecuente",
+    "minimo",
+    "maximo",
+    "registrado",
+    "registros",
+}
+
+
+def _normalize_match_text(text: str) -> str:
+    normalized = _normalize_text(text or "")
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _match_tokens(text: str) -> set[str]:
+    return {
+        token
+        for token in _normalize_match_text(text).split()
+        if len(token) >= 4 and token not in _MARKET_MATCH_STOPWORDS
+    }
+
+
+def infer_market_terms_from_question(
+    question: str,
+    producto_id: str = DEFAULT_PRODUCTO_ID,
+    limit: int = 3,
+) -> list[str]:
+    """Detecta mercados/destinos reales de Postgres cuando no hay alias manual.
+
+    Esto cubre consultas como "precio en Chetumal" o
+    "precio del Mercado de Abasto Estrella", donde el alias no aparece en
+    query_filters.py pero el destino sí existe en la tabla producto.
+    """
+    question_norm = _normalize_match_text(question)
+    question_tokens = _match_tokens(question)
+    if not question_norm or not question_tokens:
+        return []
+
+    rows = _fetch_all(
+        """
+        SELECT DISTINCT
+            destino,
+            TRIM(split_part(destino, ':', 1)) AS mercado
+        FROM producto
+        WHERE producto_id = %s
+          AND destino IS NOT NULL
+        """,
+        [producto_id],
+    )
+
+    candidates: list[tuple[int, str]] = []
+    for row in rows:
+        destino = row.get("destino") or ""
+        mercado = row.get("mercado") or ""
+        destino_norm = _normalize_match_text(destino)
+        mercado_norm = _normalize_match_text(mercado)
+        destino_tokens = _match_tokens(destino)
+        mercado_tokens = _match_tokens(mercado)
+
+        score = 0
+        term = destino
+        if mercado_norm and mercado_norm in question_norm:
+            score += 80
+            term = mercado
+        if destino_norm and destino_norm in question_norm:
+            score += 120
+            term = destino
+
+        destino_overlap = question_tokens & destino_tokens
+        mercado_overlap = question_tokens & mercado_tokens
+        score += len(destino_overlap) * 20
+        score += len(mercado_overlap) * 30
+
+        if len(destino_overlap) == 1:
+            token = next(iter(destino_overlap))
+            if len(token) >= 6:
+                score += 20
+                term = token
+
+        if score >= 20:
+            candidates.append((score, term))
+
+    selected: list[str] = []
+    for _, term in sorted(candidates, key=lambda item: item[0], reverse=True):
+        if term and term not in selected:
+            selected.append(term)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
 def get_average_price(
     year: str | None = None,
     producto_id: str = DEFAULT_PRODUCTO_ID,
@@ -781,6 +895,8 @@ def answer_analytic_question(
     operation = _select_operation(question)
     filters = build_query_filters(question, producto_id=producto_id)
     market_terms = filters.destino_terms or filters.origen_terms
+    if not market_terms:
+        market_terms = infer_market_terms_from_question(question, producto_id=producto_id)
 
     if operation == "average_price":
         result = get_average_price(
@@ -963,6 +1079,8 @@ def answer_hybrid_question(
     filters = build_query_filters(question, producto_id=producto_id)
     year = _extract_year(question)
     market_terms = filters.destino_terms or filters.origen_terms
+    if not market_terms:
+        market_terms = infer_market_terms_from_question(question, producto_id=producto_id)
     operation = _select_hybrid_operation(question, market_terms)
 
     if operation == "market_explanation":
