@@ -11,7 +11,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 
 import config
-from query_filters import build_query_filters
+from query_filters import build_query_filters, strip_client_metadata
 
 
 DEFAULT_PRODUCTO_ID = "732"
@@ -130,6 +130,7 @@ def _normalize_text(text: str) -> str:
 
 
 def _extract_year(question: str) -> str | None:
+    question = strip_client_metadata(question)
     match = re.search(r"\b(20\d{2}|19\d{2})\b", question)
     return match.group(1) if match else None
 

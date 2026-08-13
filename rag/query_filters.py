@@ -57,6 +57,16 @@ DESTINATION_ALIASES = {
 }
 
 
+def strip_client_metadata(text: str) -> str:
+    """Remove UI-only metadata appended to chat questions."""
+    return re.sub(
+        r"\s*\(fecha actual:\s*\d{1,2}/\d{1,2}/\d{4}\)\s*$",
+        "",
+        text or "",
+        flags=re.IGNORECASE,
+    ).strip()
+
+
 @dataclass
 class QueryFilters:
     qdrant_filter: Filter | None
@@ -79,6 +89,7 @@ def normalize_text(text: str) -> str:
 
 
 def _extract_date_filter(question: str) -> tuple[str | None, str | None, str | None, bool]:
+    question = strip_client_metadata(question)
     normalized = normalize_text(question)
     exact_date = re.search(r"\b(\d{2}/\d{2}/\d{4})\b", question)
     if exact_date:
@@ -106,6 +117,7 @@ def _extract_date_filter(question: str) -> tuple[str | None, str | None, str | N
 
 
 def _extract_presentation_filter(question: str) -> str | None:
+    question = strip_client_metadata(question)
     normalized = normalize_text(question)
     kg_match = re.search(r"(caja|arpilla|costal|rollo|manojo)\s+de\s+(\d+)\s*kg", normalized)
     if kg_match:
@@ -118,6 +130,7 @@ def _extract_presentation_filter(question: str) -> str | None:
 
 
 def _extract_market_terms(question: str) -> tuple[list[str], list[str]]:
+    question = strip_client_metadata(question)
     normalized = normalize_text(question)
     destino_terms: list[str] = []
     origen_terms: list[str] = []
