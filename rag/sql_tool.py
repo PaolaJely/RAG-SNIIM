@@ -291,10 +291,12 @@ def get_market_ranking(
     producto_id: str = DEFAULT_PRODUCTO_ID,
     limit: int = DEFAULT_LIMIT,
     market_terms: list[str] | None = None,
+    direction: str = "desc",
 ) -> list[dict]:
     year_filter, year_params = _where_year(year)
     market_filter, market_params = _where_destino_terms(market_terms or [])
     safe_limit = max(1, min(limit, 50))
+    order_direction = "ASC" if direction == "asc" else "DESC"
     return _fetch_all(
         f"""
         {PRODUCTO_NORMALIZADO_CTE}
@@ -315,10 +317,140 @@ def get_market_ranking(
           {year_filter}
           {market_filter}
         GROUP BY mercado
-        ORDER BY precio_promedio DESC
+        ORDER BY precio_promedio {order_direction}
         LIMIT %s
         """,
         [producto_id, *year_params, *market_params, safe_limit],
+    )
+
+
+def get_market_list(
+    year: str | None = None,
+    producto_id: str = DEFAULT_PRODUCTO_ID,
+    limit: int = 50,
+) -> list[dict]:
+    year_filter, year_params = _where_year(year)
+    safe_limit = max(1, min(limit, 100))
+    return _fetch_all(
+        f"""
+        {PRODUCTO_NORMALIZADO_CTE}
+        SELECT
+            TRIM(split_part(destino, ':', 1)) AS mercado,
+            ROUND(AVG(precio_frec_consulta)::numeric, 2)::float AS precio_promedio,
+            COUNT(*) AS registros,
+            CASE
+                WHEN COUNT(*) FILTER (WHERE unidad_consulta <> 'MXN/kg') = 0
+                THEN 'MXN/kg'
+                ELSE 'mixta'
+            END AS unidad
+        FROM producto_norm
+        WHERE destino IS NOT NULL
+          AND precio_frec_consulta IS NOT NULL
+          {year_filter}
+        GROUP BY mercado
+        ORDER BY mercado ASC
+        LIMIT %s
+        """,
+        [producto_id, *year_params, safe_limit],
+    )
+
+
+def get_dataset_overview(
+    year: str | None = None,
+    producto_id: str = DEFAULT_PRODUCTO_ID,
+) -> dict:
+    year_filter, year_params = _where_year(year)
+    row = _fetch_one(
+        f"""
+        {PRODUCTO_NORMALIZADO_CTE}
+        SELECT
+            COUNT(*) AS registros,
+            COUNT(DISTINCT TRIM(split_part(destino, ':', 1))) AS mercados,
+            COUNT(DISTINCT destino) AS destinos,
+            COUNT(DISTINCT origen) AS origenes,
+            COUNT(DISTINCT presentacion) AS presentaciones,
+            TO_CHAR(MIN(TO_DATE(fecha, 'DD/MM/YYYY')), 'DD/MM/YYYY') AS fecha_min,
+            TO_CHAR(MAX(TO_DATE(fecha, 'DD/MM/YYYY')), 'DD/MM/YYYY') AS fecha_max,
+            ROUND(AVG(precio_frec_consulta)::numeric, 2)::float AS precio_promedio,
+            ROUND(MIN(precio_min_consulta)::numeric, 2)::float AS precio_min,
+            ROUND(MAX(precio_max_consulta)::numeric, 2)::float AS precio_max,
+            CASE
+                WHEN COUNT(*) FILTER (WHERE unidad_consulta <> 'MXN/kg') = 0
+                THEN 'MXN/kg'
+                ELSE 'mixta'
+            END AS unidad
+        FROM producto_norm
+        WHERE precio_frec_consulta IS NOT NULL
+          {year_filter}
+        """,
+        [producto_id, *year_params],
+    )
+    return row or {}
+
+
+def get_market_explanation_context(
+    market_term: str | None = None,
+    year: str | None = None,
+    producto_id: str = DEFAULT_PRODUCTO_ID,
+    expensive: bool = True,
+) -> list[dict]:
+    year_filter, year_params = _where_year(year)
+    target_cte = ""
+    target_select = ""
+    params: list[Any] = [producto_id, *year_params]
+
+    if market_term:
+        target_cte = """
+        , target AS (
+            SELECT mercado
+            FROM ranked
+            WHERE mercado ILIKE %s ESCAPE '\\'
+            ORDER BY ranking ASC
+            LIMIT 1
+        )
+        """
+        target_select = "WHERE mercado = (SELECT mercado FROM target)"
+        params.append(_like_pattern(market_term))
+    else:
+        target_select = "WHERE ranking = 1"
+
+    order_direction = "DESC" if expensive else "ASC"
+    return _fetch_all(
+        f"""
+        {PRODUCTO_NORMALIZADO_CTE},
+        market_stats AS (
+            SELECT
+                TRIM(split_part(destino, ':', 1)) AS mercado,
+                ROUND(AVG(precio_frec_consulta)::numeric, 2)::float AS precio_promedio,
+                ROUND(MIN(precio_min_consulta)::numeric, 2)::float AS precio_min,
+                ROUND(MAX(precio_max_consulta)::numeric, 2)::float AS precio_max,
+                ROUND(STDDEV_POP(precio_frec_consulta)::numeric, 2)::float AS volatilidad,
+                COUNT(*) AS registros,
+                CASE
+                    WHEN COUNT(*) FILTER (WHERE unidad_consulta <> 'MXN/kg') = 0
+                    THEN 'MXN/kg'
+                    ELSE 'mixta'
+                END AS unidad
+            FROM producto_norm
+            WHERE destino IS NOT NULL
+              AND precio_frec_consulta IS NOT NULL
+              {year_filter}
+            GROUP BY mercado
+        ),
+        ranked AS (
+            SELECT
+                *,
+                RANK() OVER (ORDER BY precio_promedio {order_direction}) AS ranking,
+                COUNT(*) OVER () AS total_mercados,
+                ROUND(AVG(precio_promedio) OVER ()::numeric, 2)::float AS promedio_mercados
+            FROM market_stats
+        )
+        {target_cte}
+        SELECT *
+        FROM ranked
+        {target_select}
+        """,
+        params,
     )
 
 
@@ -473,8 +605,27 @@ def get_market_monthly_trend(
 
 def _select_operation(question: str) -> str:
     normalized = _normalize_text(question)
+    asks_count = any(token in normalized for token in ["cuanto", "cuanta", "cuantos", "cuantas", "conteo", "total de"])
+    if asks_count and "mercado" in normalized:
+        return "count_markets"
+    if asks_count and any(token in normalized for token in ["registro", "registros", "observacion", "observaciones", "datos"]):
+        return "count_records"
+    if any(token in normalized for token in ["que mercados", "cuales mercados", "lista de mercados", "mercados tienes"]):
+        return "market_list"
+    if any(token in normalized for token in ["resumen general", "datos tienes", "datos disponibles", "cobertura", "periodo cubierto"]):
+        return "dataset_overview"
     if "ranking" in normalized:
         return "market_ranking"
+    if "mercado" in normalized and any(
+        token in normalized
+        for token in ["mas caro", "mayor precio", "precio mas alto"]
+    ):
+        return "most_expensive_market"
+    if "mercado" in normalized and any(
+        token in normalized
+        for token in ["mas barato", "mas barata", "menor precio", "precio mas bajo"]
+    ):
+        return "cheapest_market"
     if "tendencia" in normalized or "evolucion" in normalized:
         return "monthly_trend"
     if "maximo" in normalized or "precio mas alto" in normalized:
@@ -523,6 +674,52 @@ def _format_answer(operation: str, rows: list[dict], year: str | None) -> str:
             for idx, row in enumerate(rows[:5], start=1)
         ]
         return f"Ranking de mercados por precio promedio{period}:\n" + "\n".join(lines)
+
+    if operation == "count_markets":
+        row = rows[0]
+        return (
+            f"Tengo {row['mercados']} mercados{period}, agrupados a partir de "
+            f"{row['destinos']} destinos completos y {row['registros']} registros."
+        )
+
+    if operation == "count_records":
+        row = rows[0]
+        return (
+            f"Tengo {row['registros']} registros de precios{period}, cubriendo "
+            f"{row['mercados']} mercados, {row['origenes']} origenes y "
+            f"{row['presentaciones']} presentaciones."
+        )
+
+    if operation == "market_list":
+        names = ", ".join(row["mercado"] for row in rows)
+        return f"Los mercados disponibles{period} son: {names}."
+
+    if operation == "dataset_overview":
+        row = rows[0]
+        return (
+            f"El conjunto de datos{period} contiene {row['registros']} registros "
+            f"entre {row['fecha_min']} y {row['fecha_max']}. Cubre "
+            f"{row['mercados']} mercados, {row['origenes']} origenes y "
+            f"{row['presentaciones']} presentaciones. El precio frecuente promedio "
+            f"es ${row['precio_promedio']} {_unit_label(row)}, con rango observado "
+            f"de ${row['precio_min']} a ${row['precio_max']}."
+        )
+
+    if operation == "most_expensive_market":
+        row = rows[0]
+        return (
+            f"El mercado con precio promedio mas alto{period} fue {row['mercado']}: "
+            f"${row['precio_promedio']} {_unit_label(row)} promedio, con rango "
+            f"${row['precio_min']}-${row['precio_max']} y {row['registros']} registros."
+        )
+
+    if operation == "cheapest_market":
+        row = rows[0]
+        return (
+            f"El mercado con precio promedio mas bajo{period} fue {row['mercado']}: "
+            f"${row['precio_promedio']} {_unit_label(row)} promedio, con rango "
+            f"${row['precio_min']}-${row['precio_max']} y {row['registros']} registros."
+        )
 
     if operation == "monthly_trend":
         lines = [
@@ -612,6 +809,33 @@ def answer_analytic_question(
             producto_id=producto_id,
             market_terms=market_terms,
         )
+    elif operation in {"count_markets", "count_records", "dataset_overview"}:
+        result = get_dataset_overview(
+            year=year,
+            producto_id=producto_id,
+        )
+        rows = [result] if result and result.get("registros") else []
+    elif operation == "market_list":
+        rows = get_market_list(
+            year=year,
+            producto_id=producto_id,
+        )
+    elif operation == "most_expensive_market":
+        rows = get_market_ranking(
+            year=year,
+            producto_id=producto_id,
+            limit=1,
+            market_terms=market_terms,
+            direction="desc",
+        )
+    elif operation == "cheapest_market":
+        rows = get_market_ranking(
+            year=year,
+            producto_id=producto_id,
+            limit=1,
+            market_terms=market_terms,
+            direction="asc",
+        )
     elif operation == "monthly_trend":
         rows = get_monthly_trend(
             year=year,
@@ -622,12 +846,22 @@ def answer_analytic_question(
         rows = []
 
     fallback_answer = _format_answer(operation, rows, year)
-    answer, token_info = _synthesize_sql_answer(
-        question=question,
-        operation=operation,
-        rows=rows,
-        fallback_answer=fallback_answer,
-    )
+    if operation in {
+        "most_expensive_market",
+        "cheapest_market",
+        "count_markets",
+        "count_records",
+        "dataset_overview",
+        "market_list",
+    }:
+        answer, token_info = fallback_answer, None
+    else:
+        answer, token_info = _synthesize_sql_answer(
+            question=question,
+            operation=operation,
+            rows=rows,
+            fallback_answer=fallback_answer,
+        )
 
     return {
         "respuesta": answer,
@@ -647,6 +881,8 @@ def answer_analytic_question(
 
 def _select_hybrid_operation(question: str, market_terms: list[str]) -> str:
     normalized = _normalize_text(question)
+    if any(token in normalized for token in ["por que", "porque", "a que se debe"]):
+        return "market_explanation"
     if len(market_terms) >= 2 or any(
         token in normalized
         for token in ["compara", "comparar", "comparacion", "versus", " vs "]
@@ -658,6 +894,29 @@ def _select_hybrid_operation(question: str, market_terms: list[str]) -> str:
 def _format_hybrid_answer(operation: str, rows: list[dict], market_terms: list[str]) -> str:
     if not rows:
         return "No hay datos suficientes en Postgres para responder la consulta híbrida."
+
+    if operation == "market_explanation":
+        row = rows[0]
+        unit = _unit_label(row)
+        difference = None
+        if row.get("promedio_mercados") not in (None, 0):
+            difference = round(row["precio_promedio"] - row["promedio_mercados"], 2)
+        direction = "por arriba" if difference is not None and difference >= 0 else "por debajo"
+        comparison = (
+            f", {abs(difference)} {unit} {direction} del promedio entre mercados "
+            f"(${row['promedio_mercados']} {unit})"
+            if difference is not None
+            else ""
+        )
+        return (
+            f"Con los datos disponibles, {row['mercado']} ocupa el lugar "
+            f"{row['ranking']} de {row['total_mercados']} por precio promedio. "
+            f"Su promedio es ${row['precio_promedio']} {unit}{comparison}. "
+            f"El rango observado va de ${row['precio_min']} a ${row['precio_max']} "
+            f"y se calculó con {row['registros']} registros. "
+            "No puedo atribuir la causa a oferta, demanda, clima o logística porque "
+            "esas variables no están en los datos consultados."
+        )
 
     if operation == "market_comparison":
         ordered = sorted(
@@ -706,7 +965,15 @@ def answer_hybrid_question(
     market_terms = filters.destino_terms or filters.origen_terms
     operation = _select_hybrid_operation(question, market_terms)
 
-    if operation == "market_comparison":
+    if operation == "market_explanation":
+        normalized = _normalize_text(question)
+        rows = get_market_explanation_context(
+            market_term=market_terms[0] if market_terms else None,
+            year=year,
+            producto_id=producto_id,
+            expensive=not any(token in normalized for token in ["barato", "barata", "menor precio"]),
+        )
+    elif operation == "market_comparison":
         rows = compare_markets(
             market_terms=market_terms,
             year=year,
@@ -722,12 +989,15 @@ def answer_hybrid_question(
         rows = get_monthly_trend(year=year, producto_id=producto_id)
 
     fallback_answer = _format_hybrid_answer(operation, rows, market_terms)
-    answer, token_info = _synthesize_sql_answer(
-        question=question,
-        operation=operation,
-        rows=rows,
-        fallback_answer=fallback_answer,
-    )
+    if operation == "market_explanation":
+        answer, token_info = fallback_answer, None
+    else:
+        answer, token_info = _synthesize_sql_answer(
+            question=question,
+            operation=operation,
+            rows=rows,
+            fallback_answer=fallback_answer,
+        )
 
     return {
         "respuesta": answer,

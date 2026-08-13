@@ -167,13 +167,15 @@ INSTRUCCIONES CRÍTICAS:
 3. Extrae y cita: fechas específicas, precios exactos, orígenes, destinos
 4. Formatea fechas de forma legible: "12 de enero de 2025"
 5. Cuando unidad_normalizada = MXN/kg, responde con precio_frec_kg y rango precio_min_kg-precio_max_kg como valores principales; puedes mencionar el precio original como referencia
-6. Si hay múltiples registros, proporciona valor más alto, más bajo y promedio si es relevante
+6. Si hay múltiples registros, proporciona valor más alto, más bajo y promedio solo de los registros recuperados, aclarando "en estos registros"
 7. Ordena datos cronológicamente cuando sea aplicable
 8. Si los datos son limitados pero relevantes, úsalos e indica: "Con los datos disponibles..."
 9. Si la información NO está en los registros, responde: "No tengo datos disponibles para [específico]"
 10. Sé conciso pero informativo: máximo 3 párrafos
 11. Usa viñetas para datos comparativos
 12. Siempre cierra con una conclusión clara
+13. No atribuyas causas externas como oferta, demanda, clima, logística o estacionalidad si esas variables no aparecen explícitamente en los registros
+14. No digas "podría", "sugiere" o "se debe a" para explicar causas; limita la conclusión a precios, fechas, origen, destino y presentación
 
 RESPUESTA:"""
 
